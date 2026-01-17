@@ -1,0 +1,45 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^conda activate videolingo ; pip install pydub -i https://pypi\\.tuna\\.tsinghua\\.edu\\.cn/simple/$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^conda activate videolingo ; cd \"d:\\\\1-work_data\\\\videoLongo\" ; streamlit run st\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^conda activate videolingo ; pip install spacy==3\\.7\\.4 replicate==0\\.33\\.0 edge-tts pypinyin g2p-en autocorrect-py syllables xmltodict resampy==0\\.4\\.3 ctranslate2==4\\.4\\.0 librosa==0\\.10\\.2\\.post1 moviepy==1\\.0\\.3 opencv-python==4\\.10\\.0\\.84 yt-dlp openpyxl ruamel\\.yaml InquirerPy -i https://pypi\\.tuna\\.tsinghua\\.edu\\.cn/simple/$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^Copy-Item \"C:\\\\Users\\\\john_\\\\Miniconda3\\\\Library\\\\bin\\\\sqlite\\*\\.dll\" -Destination \"D:\\\\conda_data\\\\envs\\\\videolingo\\\\Library\\\\bin\\\\\" -Force -ErrorAction SilentlyContinue; Copy-Item \"C:\\\\Users\\\\john_\\\\Miniconda3\\\\Library\\\\bin\\\\sqlite\\*\\.dll\" -Destination \"D:\\\\conda_data\\\\envs\\\\videolingo\\\\\" -Force -ErrorAction SilentlyContinue$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\$env:Path = \"D:\\\\conda_data\\\\envs\\\\videolingo\\\\DLLs;D:\\\\conda_data\\\\envs\\\\videolingo\\\\Library\\\\bin;D:\\\\conda_data\\\\envs\\\\videolingo;D:\\\\conda_data\\\\envs\\\\videolingo\\\\Scripts;\" \\+ \\$env:Path; D:\\\\conda_data\\\\envs\\\\videolingo\\\\python\\.exe -c \"import sqlite3; print\\('SQLite3 imported successfully'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^D:\\\\conda_data\\\\envs\\\\videolingo\\\\python\\.exe --version; \"C:\\\\Users\\\\john_\\\\Miniconda3\\\\python\\.exe\" --version$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^C:\\\\Users\\\\john_\\\\Miniconda3\\\\python\\.exe --version$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^dir \"D:\\\\conda_data\\\\envs\\\\nlp_gpu\\\\DLLs\\\\\\*sqlite\\*\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        ".specify/scripts/bash/": true,
+        ".specify/scripts/powershell/": true
+    },
+    "chat.promptFilesRecommendations": {
+        "speckit.constitution": true,
+        "speckit.specify": true,
+        "speckit.plan": true,
+        "speckit.tasks": true,
+        "speckit.implement": true
+    }
+}
