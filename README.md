@@ -1,63 +1,41 @@
-<div align="center">
+# Video AI Translate Sub
 
-<img src="/docs/logo.png" alt="VideoLingo Logo" height="140">
+一站式视频翻译、本地化和配音工具，生成 Netflix 级别的字幕质量。
 
-# Connect the World, Frame by Frame
+## 🌟 功能特性
 
-<a href="https://trendshift.io/repositories/12200" target="_blank"><img src="https://trendshift.io/api/badge/repositories/12200" alt="Huanshere%2FVideoLingo | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+- 🎥 通过 yt-dlp 下载 YouTube 视频
+- **🎙️ WhisperX 词级识别和低幻觉字幕**
+- **📝 NLP 和 AI 驱动的字幕分割**
+- **📚 自定义 + AI 生成术语表，保证翻译一致性**
+- **🔄 三步翻译-反思-调整流程，达到影视级质量**
+- **✅ Netflix 标准单行字幕**
+- **🗣️ 支持 GPT-SoVITS、Azure、OpenAI 等多种配音方案**
+- 🚀 Streamlit 一键启动和处理
+- 🌍 多语言界面支持
+- 📝 详细日志和进度恢复
 
-[**English**](/README.md)｜[**简体中文**](/translations/README.zh.md)｜[**繁體中文**](/translations/README.zh-TW.md)｜[**日本語**](/translations/README.ja.md)｜[**Español**](/translations/README.es.md)｜[**Русский**](/translations/README.ru.md)｜[**Français**](/translations/README.fr.md)
-
-</div>
-
-## 🌟 Overview ([Try VL Now!](https://videolingo.io))
-
-VideoLingo is an all-in-one video translation, localization, and dubbing tool aimed at generating Netflix-quality subtitles. It eliminates stiff machine translations and multi-line subtitles while adding high-quality dubbing, enabling global knowledge sharing across language barriers.
-
-Key features:
-- 🎥 YouTube video download via yt-dlp
-
-- **🎙️ Word-level and Low-illusion subtitle recognition with WhisperX**
-
-- **📝 NLP and AI-powered subtitle segmentation**
-
-- **📚 Custom + AI-generated terminology for coherent translation**
-
-- **🔄 3-step Translate-Reflect-Adaptation for cinematic quality**
-
-- **✅ Netflix-standard, Single-line subtitles Only**
-
-- **🗣️ Dubbing with GPT-SoVITS, Azure, OpenAI, and more**
-
-- 🚀 One-click startup and processing in Streamlit
-
-- 🌍 Multi-language support in Streamlit UI
-
-- 📝 Detailed logging with progress resumption
-
-Difference from similar projects: **Single-line subtitles only, superior translation quality, seamless dubbing experience**
-
-## 🎥 Demo
+## 🎥 演示
 
 <table>
 <tr>
 <td width="33%">
 
-### Dual Subtitles
+### 双语字幕
 ---
 https://github.com/user-attachments/assets/a5c3d8d1-2b29-4ba9-b0d0-25896829d951
 
 </td>
 <td width="33%">
 
-### Cosy2 Voice Clone
+### Cosy2 语音克隆
 ---
 https://github.com/user-attachments/assets/e065fe4c-3694-477f-b4d6-316917df7c0a
 
 </td>
 <td width="33%">
 
-### GPT-SoVITS with my voice
+### GPT-SoVITS 配音
 ---
 https://github.com/user-attachments/assets/47d965b2-b4ab-4a0b-9d08-b49a7bf3508c
 
@@ -65,39 +43,41 @@ https://github.com/user-attachments/assets/47d965b2-b4ab-4a0b-9d08-b49a7bf3508c
 </tr>
 </table>
 
-### Language Support
+### 语言支持
 
-**Input Language Support(more to come):**
+**输入语言支持：**
 
-🇺🇸 English 🤩 | 🇷🇺 Russian 😊 | 🇫🇷 French 🤩 | 🇩🇪 German 🤩 | 🇮🇹 Italian 🤩 | 🇪🇸 Spanish 🤩 | 🇯🇵 Japanese 😐 | 🇨🇳 Chinese* 😊
+🇺🇸 英语 🤩 | 🇷🇺 俄语 😊 | 🇫🇷 法语 🤩 | 🇩🇪 德语 🤩 | 🇮🇹 意大利语 🤩 | 🇪🇸 西班牙语 🤩 | 🇯🇵 日语 😐 | 🇨🇳 中文* 😊
 
-> *Chinese uses a separate punctuation-enhanced whisper model, for now...
+> *中文使用单独的标点增强 whisper 模型
 
-**Translation supports all languages, while dubbing language depends on the chosen TTS method.**
+**翻译支持所有语言，配音语言取决于所选的 TTS 方法。**
 
-## Installation
+## 安装
 
-Meet any problem? Chat with our free online AI agent [**here**](https://share.fastgpt.in/chat/share?shareId=066w11n3r9aq6879r4z0v9rh) to help you.
+### 前置要求
 
-> **Note:** For Windows users with NVIDIA GPU, follow these steps before installation:
-> 1. Install [CUDA Toolkit 12.6](https://developer.download.nvidia.com/compute/cuda/12.6.0/local_installers/cuda_12.6.0_560.76_windows.exe)
-> 2. Install [CUDNN 9.3.0](https://developer.download.nvidia.com/compute/cudnn/9.3.0/local_installers/cudnn_9.3.0_windows.exe)
-> 3. Add `C:\Program Files\NVIDIA\CUDNN\v9.3\bin\12.6` to your system PATH
-> 4. Restart your computer
+> **Windows + NVIDIA GPU 用户：**
+> 1. 安装 [CUDA Toolkit 12.6](https://developer.download.nvidia.com/compute/cuda/12.6.0/local_installers/cuda_12.6.0_560.76_windows.exe)
+> 2. 安装 [CUDNN 9.3.0](https://developer.download.nvidia.com/compute/cudnn/9.3.0/local_installers/cudnn_9.3.0_windows.exe)
+> 3. 将 `C:\Program Files\NVIDIA\CUDNN\v9.3\bin\12.6` 添加到系统 PATH
+> 4. 重启电脑
 
-> **Note:** FFmpeg is required. Please install it via package managers:
-> - Windows: ```choco install ffmpeg``` (via [Chocolatey](https://chocolatey.org/))
-> - macOS: ```brew install ffmpeg``` (via [Homebrew](https://brew.sh/))
-> - Linux: ```sudo apt install ffmpeg``` (Debian/Ubuntu)
+> **FFmpeg 必需：**
+> - Windows: `choco install ffmpeg` (通过 [Chocolatey](https://chocolatey.org/))
+> - macOS: `brew install ffmpeg` (通过 [Homebrew](https://brew.sh/))
+> - Linux: `sudo apt install ffmpeg` (Debian/Ubuntu)
 
-1. Clone the repository
+### 安装步骤
+
+1. 克隆仓库
 
 ```bash
-git clone https://github.com/Huanshere/VideoLingo.git
-cd VideoLingo
+git clone https://github.com/NuoManDai/VedioAITranslateSub.git
+cd VedioAITranslateSub
 ```
 
-2. Install dependencies(requires `python=3.10`)
+2. 安装依赖 (需要 `python=3.10`)
 
 ```bash
 conda create -n videolingo python=3.10.0 -y
@@ -105,58 +85,41 @@ conda activate videolingo
 python install.py
 ```
 
-3. Start the application
+3. 启动应用
 
 ```bash
 streamlit run st.py
 ```
 
 ### Docker
-Alternatively, you can use Docker (requires CUDA 12.4 and NVIDIA Driver version >550), see [Docker docs](/docs/pages/docs/docker.en-US.md):
+
+也可以使用 Docker（需要 CUDA 12.4 和 NVIDIA Driver 版本 >550）：
 
 ```bash
-docker build -t videolingo .
-docker run -d -p 8501:8501 --gpus all videolingo
+docker build -t video-ai-translate .
+docker run -d -p 8501:8501 --gpus all video-ai-translate
 ```
 
-## APIs
-VideoLingo supports OpenAI-Like API format and various TTS interfaces:
-- LLM: `claude-3-5-sonnet`, `gpt-4.1`, `deepseek-v3`, `gemini-2.0-flash`, ... (sorted by performance, be cautious with gemini-2.5-flash...)
-- WhisperX: Run whisperX (large-v3) locally or use 302.ai API
-- TTS: `azure-tts`, `openai-tts`, `siliconflow-fishtts`, **`fish-tts`**, `GPT-SoVITS`, `edge-tts`, `*custom-tts`(You can modify your own TTS in custom_tts.py!)
+## API 配置
 
-> **Note:** VideoLingo works with **[302.ai](https://gpt302.saaslink.net/C2oHR9)** - one API key for all services (LLM, WhisperX, TTS). Or run locally with Ollama and Edge-TTS for free, no API needed!
+支持 OpenAI-Like API 格式和多种 TTS 接口：
 
-For detailed installation, API configuration, and batch mode instructions, please refer to the documentation: [English](/docs/pages/docs/start.en-US.md) | [中文](/docs/pages/docs/start.zh-CN.md)
+- **LLM**: `claude-3-5-sonnet`, `gpt-4.1`, `deepseek-v3`, `gemini-2.0-flash` 等
+- **WhisperX**: 本地运行 whisperX (large-v3) 或使用云端 API
+- **TTS**: `azure-tts`, `openai-tts`, `siliconflow-fishtts`, `fish-tts`, `GPT-SoVITS`, `edge-tts`, `custom-tts`
 
-## Current Limitations
+## 当前限制
 
-1. WhisperX transcription performance may be affected by video background noise, as it uses wav2vac model for alignment. For videos with loud background music, please enable Voice Separation Enhancement. Additionally, subtitles ending with numbers or special characters may be truncated early due to wav2vac's inability to map numeric characters (e.g., "1") to their spoken form ("one").
+1. WhisperX 转录性能可能受视频背景噪音影响。对于背景音乐较大的视频，请启用人声分离增强。
 
-2. Using weaker models can lead to errors during processes due to strict JSON format requirements for responses (tried my best to prompt llm😊). If this error occurs, please delete the `output` folder and retry with a different LLM, otherwise repeated execution will read the previous erroneous response causing the same error.
+2. 使用较弱的模型可能因 JSON 格式要求导致错误。如果出现此错误，请删除 `output` 文件夹并使用其他 LLM 重试。
 
-3. The dubbing feature may not be 100% perfect due to differences in speech rates and intonation between languages, as well as the impact of the translation step. However, this project has implemented extensive engineering processing for speech rates to ensure the best possible dubbing results.
+3. 由于不同语言的语速和语调差异，配音功能可能无法达到 100% 完美。
 
-4. **Multilingual video transcription recognition will only retain the main language**. This is because whisperX uses a specialized model for a single language when forcibly aligning word-level subtitles, and will delete unrecognized languages.
+4. **多语言视频转录只会保留主要语言**。
 
-5. **For now, cannot dub multiple characters separately**, as whisperX's speaker distinction capability is not sufficiently reliable.
+5. **目前无法单独为多个角色配音**。
 
-## 📄 License
+## 📬 联系
 
-This project is licensed under the Apache 2.0 License. Special thanks to the following open source projects for their contributions:
-
-[whisperX](https://github.com/m-bain/whisperX), [yt-dlp](https://github.com/yt-dlp/yt-dlp), [json_repair](https://github.com/mangiucugna/json_repair), [BELLE](https://github.com/LianjiaTech/BELLE)
-
-## 📬 Contact Me
-
-- Submit [Issues](https://github.com/Huanshere/VideoLingo/issues) or [Pull Requests](https://github.com/Huanshere/VideoLingo/pulls) on GitHub
-- DM me on Twitter: [@Huanshere](https://twitter.com/Huanshere)
-- Email me at: team@videolingo.io
-
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Huanshere/VideoLingo&type=Timeline)](https://star-history.com/#Huanshere/VideoLingo&Timeline)
-
----
-
-<p align="center">If you find VideoLingo helpful, please give me a ⭐️!</p>
+- 在 GitHub 提交 [Issues](https://github.com/NuoManDai/VedioAITranslateSub/issues) 或 [Pull Requests](https://github.com/NuoManDai/VedioAITranslateSub/pulls)
