@@ -172,3 +172,22 @@ config.backup.yaml
 runtime/
 dev/
 installer_files/
+
+# Node.js / Frontend
+node_modules/
+frontend/dist/
+frontend/build/
+.npm
+.eslintcache
+*.local
+.env.local
+.env.*.local
+
+# Vite
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

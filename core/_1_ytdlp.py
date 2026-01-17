@@ -3,6 +3,7 @@ import glob
 import re
 import subprocess
 from core.utils import *
+from core.utils.config_utils import PROJECT_ROOT
 
 def sanitize_filename(filename):
     # Remove or replace illegal characters
@@ -51,8 +52,10 @@ def download_video_ytdlp(url, save_path='output', resolution='1080'):
             if new_filename != filename:
                 os.rename(os.path.join(save_path, file), os.path.join(save_path, new_filename + ext))
 
-def find_video_files(save_path='output'):
-    video_files = [file for file in glob.glob(save_path + "/*") if os.path.splitext(file)[1][1:].lower() in load_key("allowed_video_formats")]
+def find_video_files(save_path=None):
+    if save_path is None:
+        save_path = os.path.join(PROJECT_ROOT, 'output')
+    video_files = [file for file in glob.glob(os.path.join(save_path, "*")) if os.path.splitext(file)[1][1:].lower() in load_key("allowed_video_formats")]
     # change \\ to /, this happen on windows
     if sys.platform.startswith('win'):
         video_files = [file.replace("\\", "/") for file in video_files]

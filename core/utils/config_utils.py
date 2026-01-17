@@ -1,7 +1,12 @@
 from ruamel.yaml import YAML
 import threading
+import os
 
-CONFIG_PATH = 'config.yaml'
+# 获取项目根目录（config.yaml 所在位置）
+_CORE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_ROOT = os.path.dirname(_CORE_DIR)
+CONFIG_PATH = os.path.join(PROJECT_ROOT, 'config.yaml')
+
 lock = threading.Lock()
 
 yaml = YAML()

@@ -1,0 +1,479 @@
+openapi: 3.0.3
+info:
+  title: VedioAITranslateSub API
+  description: 视频翻译字幕和配音处理 API
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: 本地开发服务器
+
+tags:
+  - name: Video
+    description: 视频上传和管理
+  - name: Processing
+    description: 字幕和配音处理
+  - name: Config
+    description: 系统配置
+
+paths:
+  /api/video/upload:
+    post:
+      tags: [Video]
+      summary: 上传视频文件
+      operationId: uploadVideo
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 视频文件
+              required:
+                - file
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Video'
+        '400':
+          description: 无效的文件格式
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/video/youtube:
+    post:
+      tags: [Video]
+      summary: 从 YouTube 下载视频
+      operationId: downloadYouTube
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  description: YouTube 视频链接
+                resolution:
+                  type: string
+                  enum: ['360', '1080', 'best']
+                  default: '1080'
+              required:
+                - url
+      responses:
+        '200':
+          description: 下载任务已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Video'
+        '400':
+          description: 无效的 YouTube 链接
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/video/current:
+    get:
+      tags: [Video]
+      summary: 获取当前视频信息
+      operationId: getCurrentVideo
+      responses:
+        '200':
+          description: 当前视频信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Video'
+        '404':
+          description: 没有视频
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [Video]
+      summary: 删除当前视频
+      operationId: deleteCurrentVideo
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          description: 没有视频可删除
+
+  /api/video/stream/{filename}:
+    get:
+      tags: [Video]
+      summary: 获取视频流
+      operationId: streamVideo
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 视频流
+          content:
+            video/mp4:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: 视频不存在
+
+  /api/processing/subtitle/start:
+    post:
+      tags: [Processing]
+      summary: 开始字幕处理
+      operationId: startSubtitleProcessing
+      responses:
+        '200':
+          description: 处理已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingJob'
+        '400':
+          description: 没有视频或已在处理中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/processing/dubbing/start:
+    post:
+      tags: [Processing]
+      summary: 开始配音处理
+      operationId: startDubbingProcessing
+      responses:
+        '200':
+          description: 处理已启动
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingJob'
+        '400':
+          description: 字幕处理未完成或已在处理中
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/processing/status:
+    get:
+      tags: [Processing]
+      summary: 获取当前处理状态
+      operationId: getProcessingStatus
+      responses:
+        '200':
+          description: 处理状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingStatus'
+
+  /api/processing/cancel:
+    post:
+      tags: [Processing]
+      summary: 取消当前处理
+      operationId: cancelProcessing
+      responses:
+        '200':
+          description: 取消成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: 没有正在进行的处理
+
+  /api/processing/download/srt:
+    get:
+      tags: [Processing]
+      summary: 下载字幕文件
+      operationId: downloadSrt
+      responses:
+        '200':
+          description: 字幕文件（ZIP）
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: 字幕文件不存在
+
+  /api/config:
+    get:
+      tags: [Config]
+      summary: 获取系统配置
+      operationId: getConfig
+      responses:
+        '200':
+          description: 配置信息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Configuration'
+
+    put:
+      tags: [Config]
+      summary: 更新系统配置
+      operationId: updateConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfigurationUpdate'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Configuration'
+        '400':
+          description: 无效的配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/config/validate-api:
+    post:
+      tags: [Config]
+      summary: 验证 API 密钥有效性
+      operationId: validateApiKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key:
+                  type: string
+                base_url:
+                  type: string
+                model:
+                  type: string
+              required:
+                - key
+                - base_url
+                - model
+      responses:
+        '200':
+          description: 验证结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  message:
+                    type: string
+
+components:
+  schemas:
+    Video:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        filename:
+          type: string
+        filepath:
+          type: string
+        source_type:
+          type: string
+          enum: [upload, youtube]
+        youtube_url:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [uploading, downloading, ready, processing, completed, error]
+        file_size:
+          type: integer
+          nullable: true
+        duration:
+          type: number
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        error_message:
+          type: string
+          nullable: true
+      required:
+        - id
+        - filename
+        - filepath
+        - source_type
+        - status
+        - created_at
+
+    ProcessingStage:
+      type: object
+      properties:
+        name:
+          type: string
+        display_name:
+          type: string
+        status:
+          type: string
+          enum: [pending, running, completed, failed, skipped]
+        progress:
+          type: number
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+      required:
+        - name
+        - display_name
+        - status
+
+    ProcessingJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        video_id:
+          type: string
+          format: uuid
+        job_type:
+          type: string
+          enum: [subtitle, dubbing]
+        status:
+          type: string
+          enum: [pending, running, completed, failed, cancelled]
+        current_stage:
+          type: string
+          nullable: true
+        progress:
+          type: number
+        stages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessingStage'
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+      required:
+        - id
+        - video_id
+        - job_type
+        - status
+        - progress
+        - stages
+
+    ProcessingStatus:
+      type: object
+      properties:
+        video:
+          $ref: '#/components/schemas/Video'
+        subtitle_job:
+          $ref: '#/components/schemas/ProcessingJob'
+        dubbing_job:
+          $ref: '#/components/schemas/ProcessingJob'
+        has_unfinished_task:
+          type: boolean
+          description: 是否有未完成的任务（用于提示恢复）
+
+    Configuration:
+      type: object
+      properties:
+        display_language:
+          type: string
+        api:
+          type: object
+          properties:
+            key:
+              type: string
+            base_url:
+              type: string
+            model:
+              type: string
+            llm_support_json:
+              type: boolean
+        target_language:
+          type: string
+        demucs:
+          type: boolean
+        whisper:
+          type: object
+          properties:
+            model:
+              type: string
+            language:
+              type: string
+            runtime:
+              type: string
+              enum: [local, cloud, elevenlabs]
+            whisperX_302_api_key:
+              type: string
+            elevenlabs_api_key:
+              type: string
+        burn_subtitles:
+          type: boolean
+        tts_method:
+          type: string
+
+    ConfigurationUpdate:
+      type: object
+      description: 部分配置更新，只包含需要更新的字段
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+      required:
+        - detail

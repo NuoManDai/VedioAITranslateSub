@@ -13,8 +13,22 @@ MODEL_DIR = load_key("model_dir")
 
 @except_handler("failed to check hf mirror", default_return=None)
 def check_hf_mirror():
+    # Check if HF_ENDPOINT is already set (e.g., by backend or environment)
+    existing_endpoint = os.environ.get('HF_ENDPOINT', '')
+    if existing_endpoint:
+        rprint(f"[cyan]🚀 Using pre-configured mirror:[/cyan] {existing_endpoint}")
+        return existing_endpoint
+    
+    # Check config file for hf_mirror setting
+    config_mirror = load_key("hf_mirror")
+    if config_mirror:
+        rprint(f"[cyan]🚀 Using config mirror:[/cyan] {config_mirror}")
+        return config_mirror
+    
+    # Auto-detect fastest mirror
     mirrors = {'Official': 'huggingface.co', 'Mirror': 'hf-mirror.com'}
-    fastest_url = f"https://{mirrors['Official']}"
+    default_mirror = "https://hf-mirror.com"  # Default fallback
+    fastest_url = default_mirror
     best_time = float('inf')
     rprint("[cyan]🔍 Checking HuggingFace mirrors...[/cyan]")
     for name, domain in mirrors.items():
@@ -31,13 +45,18 @@ def check_hf_mirror():
                 fastest_url = f"https://{domain}"
             rprint(f"[green]✓ {name}:[/green] {response_time:.2f}s")
     if best_time == float('inf'):
-        rprint("[yellow]⚠️ All mirrors failed, using default[/yellow]")
+        rprint(f"[yellow]⚠️ All mirrors failed, using default: {default_mirror}[/yellow]")
+        fastest_url = default_mirror
     rprint(f"[cyan]🚀 Selected mirror:[/cyan] {fastest_url} ({best_time:.2f}s)")
     return fastest_url
 
 @except_handler("WhisperX processing error:")
 def transcribe_audio(raw_audio_file, vocal_audio_file, start, end):
-    os.environ['HF_ENDPOINT'] = check_hf_mirror()
+    # Note: hf-mirror.com cannot bypass xethub CDN for large files
+    # If you need to download models, use a proxy with HF_ENDPOINT=https://huggingface.co
+    # Or pre-download models to MODEL_DIR using: 
+    #   curl -L -x http://127.0.0.1:PROXY_PORT -o model.bin "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/model.bin"
+    
     WHISPER_LANGUAGE = load_key("whisper.language")
     device = "cuda" if torch.cuda.is_available() else "cpu"
     rprint(f"🚀 Starting WhisperX using device: {device} ...")
@@ -58,9 +77,19 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end):
         local_model = os.path.join(MODEL_DIR, "Belle-whisper-large-v3-zh-punct-fasterwhisper")
     else:
         model_name = load_key("whisper.model")
-        local_model = os.path.join(MODEL_DIR, model_name)
+        # Check multiple possible local model paths
+        possible_paths = [
+            os.path.join(MODEL_DIR, f"faster-whisper-{model_name}"),  # e.g., faster-whisper-large-v3
+            os.path.join(MODEL_DIR, model_name),                      # e.g., large-v3
+            os.path.join(MODEL_DIR, f"Systran_faster-whisper-{model_name}"),  # HF cache format
+        ]
+        local_model = None
+        for path in possible_paths:
+            if os.path.exists(path) and os.path.isfile(os.path.join(path, "model.bin")):
+                local_model = path
+                break
         
-    if os.path.exists(local_model):
+    if local_model:
         rprint(f"[green]📥 Loading local WHISPER model:[/green] {local_model} ...")
         model_name = local_model
     else:
@@ -101,7 +130,25 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end):
     # -------------------------
     align_start_time = time.time()
     # Align timestamps using vocal audio
-    model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device)
+    # Pass model_dir for local model cache
+    model_cache_dir = os.path.abspath(MODEL_DIR)
+    rprint(f"[cyan]🔍 Loading alignment model from:[/cyan] {model_cache_dir}")
+    
+    # Try to load alignment model - first attempt with local cache, then online
+    try:
+        # First try with offline mode to use local cache
+        os.environ['HF_HUB_OFFLINE'] = '1'
+        model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device, model_dir=model_cache_dir)
+        rprint(f"[green]✓ Alignment model loaded from local cache[/green]")
+    except Exception as e:
+        rprint(f"[yellow]⚠️ Local cache miss, trying online download...[/yellow]")
+        # Fallback to online download
+        os.environ.pop('HF_HUB_OFFLINE', None)
+        model_a, metadata = whisperx.load_align_model(language_code=result["language"], device=device, model_dir=model_cache_dir)
+    finally:
+        # Reset offline mode
+        os.environ.pop('HF_HUB_OFFLINE', None)
+    
     result = whisperx.align(result["segments"], model_a, metadata, vocal_audio_segment, device, return_char_alignments=False)
     align_time = time.time() - align_start_time
     rprint(f"[cyan]⏱️ time align:[/cyan] {align_time:.2f}s")

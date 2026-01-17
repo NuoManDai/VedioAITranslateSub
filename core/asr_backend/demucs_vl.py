@@ -1,5 +1,8 @@
 import os
 import torch
+import torchaudio
+import soundfile as sf
+import numpy as np
 from rich.console import Console
 from rich import print as rprint
 from demucs.pretrained import get_model
@@ -9,6 +12,7 @@ from typing import Optional
 from demucs.api import Separator
 from demucs.apply import BagOfModels
 import gc
+from pydub import AudioSegment
 from core.utils.models import *
 
 class PreloadedSeparator(Separator):
@@ -18,6 +22,26 @@ class PreloadedSeparator(Separator):
         device = "cuda" if is_cuda_available() else "mps" if torch.backends.mps.is_available() else "cpu"
         self.update_parameter(device=device, shifts=shifts, overlap=overlap, split=split,
                             segment=segment, jobs=jobs, progress=True, callback=None, callback_arg=None)
+    
+    def _load_audio(self, track):
+        """Override _load_audio to use pydub instead of torchaudio (avoids torchcodec issues)"""
+        # Convert mp3 to wav in memory using pydub
+        audio_segment = AudioSegment.from_file(str(track))
+        # Convert to model's sample rate
+        audio_segment = audio_segment.set_frame_rate(self._samplerate)
+        # Convert to stereo if needed (demucs expects stereo)
+        if audio_segment.channels == 1:
+            audio_segment = audio_segment.set_channels(2)
+        # Get raw audio data as numpy array
+        samples = np.array(audio_segment.get_array_of_samples(), dtype=np.float32)
+        # Normalize to [-1, 1]
+        samples = samples / (2 ** (audio_segment.sample_width * 8 - 1))
+        # Reshape for stereo: (samples, channels) -> (channels, samples)
+        samples = samples.reshape((-1, audio_segment.channels)).T
+        # Convert to torch tensor
+        wav = torch.from_numpy(samples)
+        # Return only wav tensor (not tuple) - demucs expects just the tensor
+        return wav
 
 def demucs_audio():
     if os.path.exists(_VOCAL_AUDIO_FILE) and os.path.exists(_BACKGROUND_AUDIO_FILE):

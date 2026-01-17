@@ -11,10 +11,10 @@ display_language: "zh-CN"
 
 # API settings
 api:
-  key: 'your-api-key'
-  base_url: 'https://yunwu.ai'
-  model: 'gpt-4.1-2025-04-14'
-  llm_support_json: false
+  key: 'sk-mkyntoyrmitryiavlfeqmlthwufgmyehqxkzdzumirtoqrzi'
+  base_url: 'https://api.siliconflow.cn'
+  model: 'deepseek-ai/DeepSeek-V3.2'
+  llm_support_json: true
 # *Number of LLM multi-threaded accesses, set to 1 if using local LLM
 max_workers: 4
 
@@ -38,9 +38,18 @@ whisper:
   elevenlabs_api_key: 'your_elevenlabs_api_key'
 
 # Whether to burn subtitles into the video
+  method: local
+  whisper_x_model: large-v2
 burn_subtitles: true
 
 ## ======================== Advanced Settings ======================== ##
+# *HuggingFace mirror endpoint for China users (leave empty to auto-detect)
+hf_mirror: ''
+
+# *HTTP proxy for HuggingFace model downloads (e.g. http://127.0.0.1:10809)
+# This proxy will be used to download models from HuggingFace when hf_mirror cannot access large files
+http_proxy: ''
+
 # *🔬 h264_nvenc GPU acceleration for ffmpeg, make sure your GPU supports it
 ffmpeg_gpu: false
 
@@ -141,19 +150,19 @@ model_dir: './_model_cache'
 
 # Supported upload video formats
 allowed_video_formats:
-- 'mp4'
-- 'mov'
-- 'avi'
-- 'mkv'
-- 'flv'
-- 'wmv'
-- 'webm'
+  - 'mp4'
+  - 'mov'
+  - 'avi'
+  - 'mkv'
+  - 'flv'
+  - 'wmv'
+  - 'webm'
 
 allowed_audio_formats:
-- 'wav'
-- 'mp3'
-- 'flac'
-- 'm4a'
+  - 'wav'
+  - 'mp3'
+  - 'flac'
+  - 'm4a'
 
 # Spacy models
 spacy_model_map:
@@ -168,14 +177,15 @@ spacy_model_map:
 
 # Languages that use space as separator
 language_split_with_space:
-- 'en'
-- 'es'
-- 'fr'
-- 'de'
-- 'it'
-- 'ru'
+  - 'en'
+  - 'es'
+  - 'fr'
+  - 'de'
+  - 'it'
+  - 'ru'
 
 # Languages that do not use space as separator
 language_split_without_space:
-- 'zh'
-- 'ja'
+  - 'zh'
+  - 'ja'
+source_language: ja
