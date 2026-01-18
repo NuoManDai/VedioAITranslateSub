@@ -14,6 +14,7 @@ import {
   DubbingSettings, 
   NetworkSettings 
 } from './settings'
+import { getDefaultMaxSplitLength } from './settings/SubtitleSettings'
 
 interface SettingsModalProps {
   open: boolean
@@ -44,13 +45,23 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
       const currentTtsMethod = config.ttsMethod || 'edge_tts'
       setWhisperMethod(currentWhisperMethod as WhisperMethod)
       setTtsMethod(currentTtsMethod as TTSMethodType)
+      // 计算正确的分句阈值：如果配置中有值则用配置值，否则根据语言使用默认值
+      // 但如果当前语言是日语且配置值是20（英语默认值），则修正为12
+      const sourceLanguage = config.sourceLanguage || 'en'
+      let maxSplitLength = config.maxSplitLength
+      if (!maxSplitLength || (sourceLanguage === 'ja' && maxSplitLength === 20)) {
+        maxSplitLength = getDefaultMaxSplitLength(sourceLanguage)
+      }
+      
       form.setFieldsValue({
         apiKey: config.api?.key || '',
         baseUrl: config.api?.baseUrl || 'https://api.openai.com',
         model: config.api?.model || 'gpt-4o-mini',
         llmSupportJson: config.api?.llmSupportJson ?? false,
         targetLanguage: config.targetLanguage || '简体中文',
-        sourceLanguage: config.sourceLanguage || 'en',
+        sourceLanguage: sourceLanguage,
+        maxSplitLength: maxSplitLength,
+        timeGapThreshold: config.timeGapThreshold || undefined,
         demucs: config.demucs ?? false,
         burnSubtitles: config.burnSubtitles ?? true,
         ttsMethod: currentTtsMethod,
@@ -96,6 +107,8 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         },
         targetLanguage: values.targetLanguage,
         sourceLanguage: values.sourceLanguage,
+        maxSplitLength: values.maxSplitLength || getDefaultMaxSplitLength(values.sourceLanguage || 'en'),
+        timeGapThreshold: values.timeGapThreshold || undefined,
         demucs: values.demucs,
         burnSubtitles: values.burnSubtitles,
         ttsMethod: values.ttsMethod,
@@ -169,6 +182,13 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     }
   }
 
+  // 语言切换时重置分词数量
+  const handleSourceLanguageChange = (language: string) => {
+    form.setFieldsValue({
+      maxSplitLength: getDefaultMaxSplitLength(language)
+    })
+  }
+
   const tabItems = [
     {
       key: 'llm',
@@ -187,6 +207,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         <SubtitleSettings 
           whisperMethod={whisperMethod}
           onWhisperMethodChange={setWhisperMethod}
+          onSourceLanguageChange={handleSourceLanguageChange}
         />
       ),
     },

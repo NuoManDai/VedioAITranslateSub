@@ -18,49 +18,154 @@ def analyze_connectors(doc, token):
     """
     lang = doc.lang_
     if lang == "en":
-        connectors = ["that", "which", "where", "when", "because", "but", "and", "or"]
+        connectors = [
+            # 因果
+            "because", "since", "therefore", "thus", "hence", "so",
+            # 转折
+            "but", "however", "although", "though", "yet", "while", "whereas",
+            # 并列
+            "and", "or", "also", "moreover", "furthermore", "besides",
+            # 关系
+            "that", "which", "where", "when", "who", "whom", "whose",
+            # 条件
+            "if", "unless", "provided",
+            # 让步
+            "even", "despite",
+        ]
         mark_dep = "mark"
         det_pron_deps = ["det", "pron"]
         verb_pos = "VERB"
         noun_pos = ["NOUN", "PROPN"]
     elif lang == "zh":
-        connectors = ["因为", "所以", "但是", "而且", "虽然", "如果", "即使", "尽管"]
+        connectors = [
+            # 因果
+            "因为", "所以", "因此", "故而", "于是", "由于",
+            # 转折
+            "但是", "然而", "不过", "可是", "却", "但",
+            # 并列
+            "而且", "并且", "同时", "另外", "此外", "还有",
+            # 条件
+            "如果", "假如", "要是", "倘若", "若是", "万一",
+            # 让步
+            "虽然", "尽管", "即使", "哪怕", "纵然", "就算",
+        ]
         mark_dep = "mark"
         det_pron_deps = ["det", "pron"]
         verb_pos = "VERB"
         noun_pos = ["NOUN", "PROPN"]
     elif lang == "ja":
-        connectors = ["けれども", "しかし", "だから", "それで", "ので", "のに", "ため"]
+        connectors = [
+            # 逆接 (转折)
+            "けれども", "けれど", "けど", "しかし", "だが", "でも", "が", 
+            "ところが", "にもかかわらず", "それでも", "ただし", "もっとも",
+            # 因果
+            "だから", "それで", "ので", "から", "ため", "したがって", 
+            "そのため", "よって", "ゆえに", "なぜなら",
+            # 并列/添加
+            "そして", "また", "さらに", "それから", "および", "かつ", 
+            "しかも", "その上", "加えて",
+            # 条件
+            "なら", "ならば", "たら", "れば", "と", "もし",
+            # 让步
+            "のに", "ても", "といっても", "にしても",
+            # 时间
+            "とき", "ときに", "際に", "あと", "まえ",
+        ]
         mark_dep = "mark"
         det_pron_deps = ["case"]
         verb_pos = "VERB"
         noun_pos = ["NOUN", "PROPN"]
     elif lang == "fr":
-        connectors = ["que", "qui", "où", "quand", "parce que", "mais", "et", "ou"]
+        connectors = [
+            # 因果
+            "parce que", "car", "donc", "ainsi", "puisque",
+            # 转折
+            "mais", "cependant", "pourtant", "toutefois", "néanmoins",
+            # 并列
+            "et", "ou", "aussi", "de plus", "en outre",
+            # 关系
+            "que", "qui", "où", "quand", "dont", "lequel",
+            # 条件
+            "si", "pourvu que", "à condition que",
+            # 让步
+            "bien que", "quoique", "même si",
+        ]
         mark_dep = "mark"
         det_pron_deps = ["det", "pron"]
         verb_pos = "VERB"
         noun_pos = ["NOUN", "PROPN"]
     elif lang == "ru":
-        connectors = ["что", "который", "где", "когда", "потому что", "но", "и", "или"] 
+        connectors = [
+            # 因果
+            "потому что", "поэтому", "так как", "ведь", "ибо",
+            # 转折
+            "но", "однако", "хотя", "впрочем", "зато",
+            # 并列
+            "и", "или", "также", "кроме того", "притом",
+            # 关系
+            "что", "который", "где", "когда", "чей",
+            # 条件
+            "если", "при условии",
+            # 让步
+            "несмотря на", "хотя", "даже если",
+        ]
         mark_dep = "mark"
         det_pron_deps = ["det"]
         verb_pos = "VERB"
         noun_pos = ["NOUN", "PROPN"]
     elif lang == "es":
-        connectors = ["que", "cual", "donde", "cuando", "porque", "pero", "y", "o"]
+        connectors = [
+            # 因果
+            "porque", "por eso", "así que", "ya que", "puesto que",
+            # 转折
+            "pero", "sin embargo", "aunque", "no obstante",
+            # 并列
+            "y", "o", "también", "además", "asimismo",
+            # 关系
+            "que", "cual", "donde", "cuando", "quien", "cuyo",
+            # 条件
+            "si", "a menos que", "con tal de que",
+            # 让步
+            "aunque", "a pesar de que", "si bien",
+        ]
         mark_dep = "mark"
         det_pron_deps = ["det", "pron"]
         verb_pos = "VERB"
         noun_pos = ["NOUN", "PROPN"]
     elif lang == "de":
-        connectors = ["dass", "welche", "wo", "wann", "weil", "aber", "und", "oder"]
+        connectors = [
+            # 因果
+            "weil", "denn", "deshalb", "daher", "darum",
+            # 转折
+            "aber", "jedoch", "obwohl", "trotzdem", "dennoch",
+            # 并列
+            "und", "oder", "auch", "außerdem", "ferner",
+            # 关系
+            "dass", "welche", "wo", "wann", "wer", "dessen",
+            # 条件
+            "wenn", "falls", "sofern",
+            # 让步
+            "obwohl", "obgleich", "selbst wenn",
+        ]
         mark_dep = "mark"
         det_pron_deps = ["det", "pron"]
         verb_pos = "VERB"
         noun_pos = ["NOUN", "PROPN"]
     elif lang == "it":
-        connectors = ["che", "quale", "dove", "quando", "perché", "ma", "e", "o"]
+        connectors = [
+            # 因果
+            "perché", "quindi", "perciò", "poiché", "siccome",
+            # 转折
+            "ma", "però", "tuttavia", "sebbene", "benché",
+            # 并列
+            "e", "o", "anche", "inoltre", "pure",
+            # 关系
+            "che", "quale", "dove", "quando", "chi", "cui",
+            # 条件
+            "se", "qualora", "purché",
+            # 让步
+            "anche se", "nonostante", "malgrado",
+        ]
         mark_dep = "mark"
         det_pron_deps = ["det", "pron"]
         verb_pos = "VERB"
@@ -142,8 +247,8 @@ def split_sentences_main(nlp):
         output_file.seek(output_file.tell() - 1, os.SEEK_SET)
         output_file.truncate()
 
-    # delete the original file
-    os.remove(SPLIT_BY_COMMA_FILE)
+    # 保留中间文件用于调试
+    # os.remove(SPLIT_BY_COMMA_FILE)
     
     rprint(f"[green]💾 Sentences split by connectors saved to →  `{SPLIT_BY_CONNECTOR_FILE}`[/green]")
 

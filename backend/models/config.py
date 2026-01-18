@@ -48,6 +48,8 @@ class Configuration(BaseModel):
     # 字幕设置
     source_language: str = Field(default='en', description="源语言")
     target_language: str = Field(default='简体中文', description="目标语言")
+    max_split_length: int = Field(default=20, description="GPT分句阈值(token数)，日语默认12，其他默认20")
+    time_gap_threshold: Optional[float] = Field(default=None, description="时间间隔切分阈值(秒)，日语推荐1.0，为空则不启用")
     demucs: bool = Field(default=False, description="是否启用人声分离")
     burn_subtitles: bool = Field(default=True, description="是否烧录字幕")
     
@@ -109,6 +111,8 @@ class ConfigurationUpdate(BaseModel):
     resolution: Optional[str] = None
     source_language: Optional[str] = None
     target_language: Optional[str] = None
+    max_split_length: Optional[int] = None
+    time_gap_threshold: Optional[float] = None
     demucs: Optional[bool] = None
     burn_subtitles: Optional[bool] = None
     whisper: Optional[WhisperConfig] = None

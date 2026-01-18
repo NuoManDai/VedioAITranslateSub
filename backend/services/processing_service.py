@@ -40,20 +40,26 @@ class TqdmCapture(io.StringIO):
         # Patterns for important log lines (emoji or key prefixes)
         self._important_patterns = [
             r'^[✅⚠️❌🎙️🎤🚀🎮▶️📥🔍⏱️💾📝🔊💬🌐📊📖💾⏱️🔄⬇️✂️🎬📦⚙️✓🔗📏🎵🎬➡️💡🔧📄🗣️🎯🔢📋]',  # Emoji prefixes
+            r'📝',  # Explicit 📝 emoji match (for CJK mode etc.)
             r'^(INFO|WARNING|ERROR|DEBUG):',  # Log levels
             r'\d{4}-\d{2}-\d{2}.*-\s*(INFO|WARNING|ERROR)',  # Timestamped logs
             r'huggingface.*-\s*(WARNING|ERROR)',  # HuggingFace library logs
             r'(MaxRetryError|ConnectTimeoutError|ConnectionError)',  # Network errors
             r'(timed out|timeout|connection refused)',  # Connection issues
             r'LLM request took',  # LLM timing logs
-            r'(Origin:|Direct:|Free:)\s*\S',  # Translation results
+            r'(Origin:|Direct:|Free:)',  # Translation results (simplified)
+            r'Translation Results',  # Translation table title
+            r'CJK mode',  # CJK mode indicator
             r'use cache response',  # Cache hit
             r'(Summarizing|translat|Processing|Loading|Starting)',  # Process stages
             r'(saved to|Successfully|Completed|finished|Done)',  # Completion messages
             r'(Source Line|Target Line|SRC_LANG|TARGET_LANG)',  # Subtitle split table content
-            r'(Original|Split)\s*\|',  # Split result table (using | after cleaning)
+            r'(Original|Split)\s*[│|]',  # Split result table (both Unicode │ and ASCII |)
             r'(Line \d+ needs to be split|Split attempt|Aligned parts)',  # Split progress
             r'(Start splitting|splitting subtitles)',  # Split start
+            r'Sentence \d+ has been successfully split',  # GPT split success message
+            r'All sentences have been successfully split',  # All split complete
+            r'(low similarity|Unable to find.*split point)',  # Split warnings
             # ASR related
             r'(Transcrib|whisper|ASR|alignment|align)',  # ASR process
             r'(Demucs|separation|vocal|background)',  # Audio separation
@@ -80,6 +86,9 @@ class TqdmCapture(io.StringIO):
             # Timing
             r'(time|Time|耗时|took|elapsed)',  # Timing info
             r'(\d+\.\d+s|\d+ms|\d+ seconds)',  # Time values
+            # LLM sentence breaks
+            r'Using LLM sentence breaks',  # LLM sentence break mode
+            r'\(\d+ lines?\)',  # Line count indicator
         ]
         self._important_regex = re.compile('|'.join(self._important_patterns), re.IGNORECASE)
         

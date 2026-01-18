@@ -52,14 +52,14 @@ STAGE_OUTPUT_FILES = {
         {'name': 'background.mp3', 'path': 'output/audio/background.mp3', 'type': 'mp3', 'description': '分离的背景音乐'},
     ],
     'split_nlp': [
-        {'name': 'split_by_mark.txt', 'path': 'output/log/split_by_mark.txt', 'type': 'txt', 'description': '标点分句结果'},
-        {'name': 'split_by_comma.txt', 'path': 'output/log/split_by_comma.txt', 'type': 'txt', 'description': '逗号分句结果'},
-        {'name': 'split_by_connector.txt', 'path': 'output/log/split_by_connector.txt', 'type': 'txt', 'description': '连接词分句结果'},
-        {'name': 'split_by_nlp.txt', 'path': 'output/log/split_by_nlp.txt', 'type': 'txt', 'description': 'NLP最终分句结果'},
+        {'name': 'split_by_mark.txt', 'path': 'output/log/split_by_mark.txt', 'type': 'txt', 'description': '标点切分结果'},
+        {'name': 'split_by_comma.txt', 'path': 'output/log/split_by_comma.txt', 'type': 'txt', 'description': '逗号切分结果'},
+        {'name': 'split_by_connector.txt', 'path': 'output/log/split_by_connector.txt', 'type': 'txt', 'description': '连接词切分结果'},
+        {'name': 'split_by_nlp.txt', 'path': 'output/log/split_by_nlp.txt', 'type': 'txt', 'description': '粗切分最终结果'},
     ],
     'split_meaning': [
-        {'name': 'split_by_meaning.txt', 'path': 'output/log/split_by_meaning.txt', 'type': 'txt', 'description': '语义分割结果'},
-        {'name': 'split_by_meaning.json', 'path': 'output/gpt_log/split_by_meaning.json', 'type': 'json', 'description': 'LLM语义分割日志'},
+        {'name': 'split_by_meaning.txt', 'path': 'output/log/split_by_meaning.txt', 'type': 'txt', 'description': 'GPT语义分句结果'},
+        {'name': 'split_by_meaning.json', 'path': 'output/gpt_log/split_by_meaning.json', 'type': 'json', 'description': 'GPT分句日志'},
     ],
     'summarize': [
         {'name': 'terminology.json', 'path': 'output/log/terminology.json', 'type': 'json', 'description': '术语表和主题摘要'},
@@ -112,8 +112,8 @@ STAGE_OUTPUT_FILES = {
 # 字幕处理阶段定义
 SUBTITLE_STAGES = [
     ProcessingStage(name='asr', display_name='语音识别'),
-    ProcessingStage(name='split_nlp', display_name='NLP 分句'),
-    ProcessingStage(name='split_meaning', display_name='语义分割'),
+    ProcessingStage(name='split_nlp', display_name='文本粗切分'),
+    ProcessingStage(name='split_meaning', display_name='GPT 语义分句'),
     ProcessingStage(name='summarize', display_name='内容总结'),
     ProcessingStage(name='translate', display_name='翻译'),
     ProcessingStage(name='split_sub', display_name='字幕分割'),

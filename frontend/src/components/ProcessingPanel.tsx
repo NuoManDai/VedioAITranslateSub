@@ -32,8 +32,8 @@ const POLL_INTERVAL = 3000 // 3 seconds
 // Default subtitle processing stages
 const DEFAULT_SUBTITLE_STAGES: ProcessingStage[] = [
   { name: 'asr', displayName: '语音识别', status: 'pending' },
-  { name: 'split_nlp', displayName: 'NLP 分句', status: 'pending' },
-  { name: 'split_meaning', displayName: '语义分割', status: 'pending' },
+  { name: 'split_nlp', displayName: '文本粗切分', status: 'pending' },
+  { name: 'split_meaning', displayName: 'GPT 语义分句', status: 'pending' },
   { name: 'summarize', displayName: '内容总结', status: 'pending' },
   { name: 'translate', displayName: '翻译', status: 'pending' },
   { name: 'split_sub', displayName: '字幕分割', status: 'pending' },

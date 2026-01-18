@@ -157,6 +157,8 @@ class ConfigService:
             resolution=data.get('resolution', '1080'),
             source_language=source_language,
             target_language=data.get('target_language', '简体中文'),
+            max_split_length=data.get('max_split_length', 12 if source_language == 'ja' else 20),
+            time_gap_threshold=data.get('time_gap_threshold'),
             demucs=data.get('demucs', False),
             burn_subtitles=data.get('burn_subtitles', True),
             whisper=whisper_config or Configuration().whisper,

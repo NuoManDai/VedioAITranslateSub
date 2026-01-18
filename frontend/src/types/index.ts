@@ -157,6 +157,8 @@ export interface Configuration {
   resolution: string;
   sourceLanguage: string;
   targetLanguage: string;
+  maxSplitLength: number;  // GPT 分句阈值（token 数）
+  timeGapThreshold?: number;  // 时间间隔切分阈值（秒），日语推荐1.0，为空则不启用
   demucs: boolean;
   burnSubtitles: boolean;
   whisper: WhisperConfig;

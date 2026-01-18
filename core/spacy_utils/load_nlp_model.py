@@ -12,10 +12,11 @@ def get_spacy_model(language: str):
 
 @except_handler("Failed to load NLP Spacy model")
 def init_nlp():
-    # 优先使用用户设置的语言，如果未设置或为空则使用自动检测的语言
+    # 优先使用用户设置的语言，如果未设置、为空或为'auto'则使用自动检测的语言
     user_language = load_key("whisper.language")
     detected_language = load_key("whisper.detected_language")
-    language = user_language if user_language else detected_language
+    # 'auto' 表示自动检测，此时应使用 detected_language
+    language = user_language if user_language and user_language != 'auto' else detected_language
     rprint(f"[blue]🔤 NLP language: {language} (user: {user_language}, detected: {detected_language})[/blue]")
     model = get_spacy_model(language)
     rprint(f"[blue]⏳ Loading NLP Spacy model: <{model}> ...[/blue]")
