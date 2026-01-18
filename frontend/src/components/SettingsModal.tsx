@@ -1,12 +1,19 @@
 /**
- * Settings Modal Component - Placeholder
- * Will be fully implemented in Phase 6 (US4)
+ * Settings Modal Component
+ * 设置弹窗组件 - 重构后的简化版本
  */
-import { Modal, Form, Input, Select, Switch, Button, Tabs, message } from 'antd'
+import { Modal, Form, Button, Tabs, message } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useState } from 'react'
-import { TTS_METHODS, WHISPER_METHODS, SOURCE_LANGUAGES, TARGET_LANGUAGES } from '../types'
-import { getConfig, updateConfig, validateApiKey } from '../services/api'
+import { TTSMethodType, WhisperMethod } from '../types'
+import { getConfig, updateConfig, validateApiKey, getAzureVoices } from '../services/api'
+import type { AzureVoice } from '../types'
+import { 
+  LLMSettings, 
+  SubtitleSettings, 
+  DubbingSettings, 
+  NetworkSettings 
+} from './settings'
 
 interface SettingsModalProps {
   open: boolean
@@ -18,6 +25,10 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [validating, setValidating] = useState(false)
+  const [ttsMethod, setTtsMethod] = useState<TTSMethodType>('azure_tts')
+  const [whisperMethod, setWhisperMethod] = useState<WhisperMethod>('local')
+  const [azureVoices, setAzureVoices] = useState<AzureVoice[]>([])
+  const [loadingVoices, setLoadingVoices] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -29,6 +40,10 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     try {
       setLoading(true)
       const config = await getConfig()
+      const currentWhisperMethod = config.whisper?.method || 'local'
+      const currentTtsMethod = config.ttsMethod || 'edge_tts'
+      setWhisperMethod(currentWhisperMethod as WhisperMethod)
+      setTtsMethod(currentTtsMethod as TTSMethodType)
       form.setFieldsValue({
         apiKey: config.api?.key || '',
         baseUrl: config.api?.baseUrl || 'https://api.openai.com',
@@ -38,8 +53,25 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         sourceLanguage: config.sourceLanguage || 'en',
         demucs: config.demucs ?? false,
         burnSubtitles: config.burnSubtitles ?? true,
-        ttsMethod: config.ttsMethod || 'edge_tts',
-        whisperMethod: config.whisper?.method || 'whisperX_local',
+        ttsMethod: currentTtsMethod,
+        whisperMethod: currentWhisperMethod,
+        whisperX302ApiKey: config.whisper?.whisperX302ApiKey || '',
+        elevenlabsApiKey: config.whisper?.elevenlabsApiKey || '',
+        // TTS configurations
+        sfFishTtsApiKey: config.sfFishTtsApiKey || '',
+        sfFishTtsMode: config.sfFishTtsMode || 'preset',
+        sfFishTtsVoice: config.sfFishTtsVoice || 'anna',
+        openaiTtsApiKey: config.openaiTtsApiKey || '',
+        openaiVoice: config.openaiVoice || 'alloy',
+        fishTtsApiKey: config.fishTtsApiKey || '',
+        fishTtsCharacter: config.fishTtsCharacter || 'AD学姐',
+        azureKey: config.azureKey || '',
+        azureVoice: config.azureVoice || 'zh-CN-YunfengNeural',
+        sovitsCharacter: config.sovitsCharacter || '',
+        gptSovitsReferMode: config.gptSovitsReferMode || 3,
+        edgeTtsVoice: config.edgeTtsVoice || 'zh-CN-XiaoxiaoNeural',
+        sfCosyvoice2ApiKey: config.sfCosyvoice2ApiKey || '',
+        f5ttsApiKey: config.f5ttsApiKey || '',
         httpProxy: config.httpProxy || '',
         hfMirror: config.hfMirror || '',
       })
@@ -70,7 +102,24 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         whisper: {
           method: values.whisperMethod,
           whisperXModel: 'large-v2',
+          whisperX302ApiKey: values.whisperX302ApiKey || '',
+          elevenlabsApiKey: values.elevenlabsApiKey || '',
         },
+        // TTS configurations
+        sfFishTtsApiKey: values.sfFishTtsApiKey || '',
+        sfFishTtsMode: values.sfFishTtsMode || 'preset',
+        sfFishTtsVoice: values.sfFishTtsVoice || '',
+        openaiTtsApiKey: values.openaiTtsApiKey || '',
+        openaiVoice: values.openaiVoice || 'alloy',
+        fishTtsApiKey: values.fishTtsApiKey || '',
+        fishTtsCharacter: values.fishTtsCharacter || '',
+        azureKey: values.azureKey || '',
+        azureVoice: values.azureVoice || '',
+        sovitsCharacter: values.sovitsCharacter || '',
+        gptSovitsReferMode: values.gptSovitsReferMode || 3,
+        edgeTtsVoice: values.edgeTtsVoice || '',
+        sfCosyvoice2ApiKey: values.sfCosyvoice2ApiKey || '',
+        f5ttsApiKey: values.f5ttsApiKey || '',
         httpProxy: values.httpProxy || '',
         hfMirror: values.hfMirror || '',
       })
@@ -107,6 +156,60 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     }
   }
 
+  const handleFetchAzureVoices = async () => {
+    try {
+      setLoadingVoices(true)
+      const response = await getAzureVoices()
+      setAzureVoices(response.voices)
+      message.success(t('Voice list fetched successfully'))
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : t('Failed to fetch voice list'))
+    } finally {
+      setLoadingVoices(false)
+    }
+  }
+
+  const tabItems = [
+    {
+      key: 'llm',
+      label: t('LLM Configuration'),
+      children: (
+        <LLMSettings 
+          validating={validating} 
+          onTestApi={handleTestApi} 
+        />
+      ),
+    },
+    {
+      key: 'subtitle',
+      label: t('Subtitles Settings'),
+      children: (
+        <SubtitleSettings 
+          whisperMethod={whisperMethod}
+          onWhisperMethodChange={setWhisperMethod}
+        />
+      ),
+    },
+    {
+      key: 'dubbing',
+      label: t('Dubbing Settings'),
+      children: (
+        <DubbingSettings 
+          ttsMethod={ttsMethod}
+          onTtsMethodChange={setTtsMethod}
+          azureVoices={azureVoices}
+          loadingVoices={loadingVoices}
+          onFetchAzureVoices={handleFetchAzureVoices}
+        />
+      ),
+    },
+    {
+      key: 'network',
+      label: t('Network Settings'),
+      children: <NetworkSettings />,
+    },
+  ]
+
   return (
     <Modal
       title={t('settings')}
@@ -123,116 +226,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
       ]}
     >
       <Form form={form} layout="vertical" className="mt-4">
-        <Tabs
-          items={[
-            {
-              key: 'llm',
-              label: t('LLM Configuration'),
-              children: (
-                <>
-                  <Form.Item
-                    name="apiKey"
-                    label={t('API_KEY')}
-                    rules={[{ required: true }]}
-                  >
-                    <Input.Password placeholder="sk-..." />
-                  </Form.Item>
-                  <Form.Item
-                    name="baseUrl"
-                    label={t('BASE_URL')}
-                    rules={[{ required: true }]}
-                  >
-                    <Input placeholder="https://api.openai.com" />
-                  </Form.Item>
-                  <Form.Item
-                    name="model"
-                    label={t('MODEL')}
-                    rules={[{ required: true }]}
-                  >
-                    <Input placeholder="gpt-4o-mini" />
-                  </Form.Item>
-                  <Form.Item 
-                    name="llmSupportJson" 
-                    label={t('LLM JSON Mode')}
-                    tooltip={t('llmJsonModeTooltip')}
-                    valuePropName="checked"
-                  >
-                    <Switch />
-                  </Form.Item>
-                  <Button loading={validating} onClick={handleTestApi}>
-                    {t('testApi')}
-                  </Button>
-                </>
-              ),
-            },
-            {
-              key: 'subtitle',
-              label: t('Subtitles Settings'),
-              children: (
-                <>
-                  <Form.Item name="sourceLanguage" label={t('Recog Lang')}>
-                    <Select 
-                      options={SOURCE_LANGUAGES.map(l => ({ value: l.value, label: l.label }))}
-                      showSearch
-                      filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                      }
-                    />
-                  </Form.Item>
-                  <Form.Item name="targetLanguage" label={t('Target Lang')}>
-                    <Select 
-                      options={TARGET_LANGUAGES.map(l => ({ value: l.value, label: l.label }))}
-                      showSearch
-                      filterOption={(input, option) =>
-                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                      }
-                    />
-                  </Form.Item>
-                  <Form.Item name="whisperMethod" label="Whisper Method">
-                    <Select options={WHISPER_METHODS.map(m => ({ value: m.value, label: m.label }))} />
-                  </Form.Item>
-                  <Form.Item name="demucs" label={t('Vocal separation enhance')} valuePropName="checked">
-                    <Switch />
-                  </Form.Item>
-                  <Form.Item name="burnSubtitles" label={t('Burn-in Subtitles')} valuePropName="checked">
-                    <Switch />
-                  </Form.Item>
-                </>
-              ),
-            },
-            {
-              key: 'dubbing',
-              label: t('Dubbing Settings'),
-              children: (
-                <Form.Item name="ttsMethod" label={t('TTS Method')}>
-                  <Select options={TTS_METHODS.map(m => ({ value: m.value, label: m.label }))} />
-                </Form.Item>
-              ),
-            },
-            {
-              key: 'network',
-              label: t('Network Settings'),
-              children: (
-                <>
-                  <Form.Item 
-                    name="httpProxy" 
-                    label={t('HTTP Proxy')}
-                    tooltip={t('proxyTooltip')}
-                  >
-                    <Input placeholder="http://127.0.0.1:10809" />
-                  </Form.Item>
-                  <Form.Item 
-                    name="hfMirror" 
-                    label={t('HuggingFace Mirror')}
-                    tooltip={t('hfMirrorTooltip')}
-                  >
-                    <Input placeholder="https://hf-mirror.com" />
-                  </Form.Item>
-                </>
-              ),
-            },
-          ]}
-        />
+        <Tabs items={tabItems} />
       </Form>
     </Modal>
   )

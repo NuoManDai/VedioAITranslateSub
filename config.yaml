@@ -44,11 +44,11 @@ burn_subtitles: true
 
 ## ======================== Advanced Settings ======================== ##
 # *HuggingFace mirror endpoint for China users (leave empty to auto-detect)
-hf_mirror: ''
+hf_mirror: 'https://hf-mirror.com'
 
 # *HTTP proxy for HuggingFace model downloads (e.g. http://127.0.0.1:10809)
 # This proxy will be used to download models from HuggingFace when hf_mirror cannot access large files
-http_proxy: ''
+http_proxy: 'http://127.0.0.1:10809'
 
 # *🔬 h264_nvenc GPU acceleration for ffmpeg, make sure your GPU supports it
 ffmpeg_gpu: false
@@ -105,12 +105,27 @@ azure_tts:
   voice: 'zh-CN-YunfengNeural'
 
 # FishTTS configuration, 302.ai API only
+# 角色ID可在 https://fish.audio/zh-CN/discovery/ 查看和获取
 fish_tts:
   api_key: 'YOUR_302_API_KEY'
-  character: 'AD学姐'
+  character: '派蒙'
   character_id_dict:
-    'AD学姐': '7f92f8afb8ec43bf81429cc1c9199cb1'
-    '丁真': '54a5170264694bfc8e9ad98df7bd89c3'
+    # 动漫角色
+    '派蒙': 'd7de7164476248a38271f840f4426b0a'
+    '钟离': '2bc431816eba4b5c95d8e5e60b74add0'
+    '胡桃': 'ffecd524701a4dbe89adc5813ff9fbf7'
+    '刻晴': 'cc6e9f3a12504f0aa7cc5d2073f03611'
+    '甘雨': '66d54e9e0d9040b09f4c7ef2b9cb8cbc'
+    '雷电将军': '574f86d5cf3c4f3b9b2de399af0d0ec8'
+    '纳西妲': 'b4b4b6d28fb743febd7c6a7f5c6e9f8e'
+    '芙宁娜': '6e2f2c6d15d248f58e1a0a5ad79c0c5d'
+    '流萤': 'd4d8c0b37f0e4e3ea5c1c2e1b5d8a9f7'
+    '花火': 'a9e5c6f4b3d2419ea7c8d5b4e3f2a1b6'
+    # 赛马娘
+    '赛马娘': '561fcedfdf0e4e1399d1bc4930d50c0e'
+    # 知名声优
+    '雷军': 'aebaa2305aa2452fbdc8f41eec852a79'
+    '央视配音': '59cb5986671546eaa6ca8ae6f29f6d22'
 
 # SiliconFlow CosyVoice2 Clone
 sf_cosyvoice2:
@@ -150,19 +165,19 @@ model_dir: './_model_cache'
 
 # Supported upload video formats
 allowed_video_formats:
-  - 'mp4'
-  - 'mov'
-  - 'avi'
-  - 'mkv'
-  - 'flv'
-  - 'wmv'
-  - 'webm'
+- 'mp4'
+- 'mov'
+- 'avi'
+- 'mkv'
+- 'flv'
+- 'wmv'
+- 'webm'
 
 allowed_audio_formats:
-  - 'wav'
-  - 'mp3'
-  - 'flac'
-  - 'm4a'
+- 'wav'
+- 'mp3'
+- 'flac'
+- 'm4a'
 
 # Spacy models
 spacy_model_map:
@@ -177,15 +192,15 @@ spacy_model_map:
 
 # Languages that use space as separator
 language_split_with_space:
-  - 'en'
-  - 'es'
-  - 'fr'
-  - 'de'
-  - 'it'
-  - 'ru'
+- 'en'
+- 'es'
+- 'fr'
+- 'de'
+- 'it'
+- 'ru'
 
 # Languages that do not use space as separator
 language_split_without_space:
-  - 'zh'
-  - 'ja'
+- 'zh'
+- 'ja'
 source_language: ja

@@ -106,5 +106,21 @@
     "No NVIDIA GPU detected": "未檢測到NVIDIA GPU",
     "No NVIDIA GPU detected or NVIDIA drivers not properly installed": "未檢測到NVIDIA GPU或NVIDIA驅動未正確安裝",
     "LLM JSON Format Support": "LLM JSON格式支持",
-    "Enable if your LLM supports JSON mode output": "如果選用的LLM支持JSON模式輸出，請啟用"
+    "Enable if your LLM supports JSON mode output": "如果選用的LLM支援JSON模式輸出，請啟用",
+    "Console": "控制台",
+    "idle": "閒置",
+    "All Levels": "所有級別",
+    "All Sources": "所有來源",
+    "Subtitle": "字幕",
+    "Dubbing": "配音",
+    "Auto Scroll": "自動捲動",
+    "Clear": "清空",
+    "No logs yet": "暫無日誌",
+    "restartSubtitle": "重新開始字幕",
+    "restartDubbing": "重新開始配音",
+    "confirmRestartSubtitle": "確認重新開始字幕處理？",
+    "confirmRestartSubtitleDesc": "這將清除所有字幕處理的中間檔案（日誌、翻譯快取、字幕檔案等）。原始影片和音訊將保留。",
+    "confirmRestartDubbing": "確認重新開始配音處理？",
+    "confirmRestartDubbingDesc": "這將清除所有配音處理的中間檔案（音訊片段、參考音訊等）。原始影片和字幕將保留。",
+    "cleanupSuccess": "清理完成，可以重新開始處理"
 }

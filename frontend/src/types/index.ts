@@ -53,6 +53,87 @@ export interface ProcessingStatus {
   subtitleJob?: ProcessingJob;
   dubbingJob?: ProcessingJob;
   hasUnfinishedTask: boolean;
+  canStartSubtitle: boolean;
+  canStartDubbing: boolean;
+}
+
+// Log types
+export type LogLevel = 'INFO' | 'WARNING' | 'ERROR';
+
+export interface LogEntry {
+  id: number;
+  timestamp: string;
+  level: LogLevel;
+  message: string;
+  source: string;
+  jobId?: string;
+  durationMs?: number;
+}
+
+export interface LogQueryResponse {
+  logs: LogEntry[];
+  nextId: number;
+  hasMore: boolean;
+}
+
+// TTS Config types
+export type TTSMethodType = 
+  | 'azure_tts' 
+  | 'openai_tts' 
+  | 'edge_tts' 
+  | 'fish_tts' 
+  | 'sf_fish_tts'
+  | 'gpt_sovits' 
+  | 'sf_cosyvoice2'
+  | 'f5tts'
+  | 'custom_tts';
+
+export interface TTSConfig {
+  method: TTSMethodType;
+  apiKeyMasked?: string;
+  apiBase?: string;
+  voice: string;
+  region?: string;
+  model?: string;
+  speechRate: number;
+}
+
+// Alias for TTSConfig (same as response format)
+export type TTSConfigResponse = TTSConfig;
+
+export interface TTSConfigUpdate {
+  method?: TTSMethodType;
+  apiKey?: string;
+  apiBase?: string;
+  voice?: string;
+  region?: string;
+  model?: string;
+  speechRate?: number;
+}
+
+export interface AzureVoice {
+  name: string;
+  displayName: string;
+  localName: string;
+  shortName: string;
+  gender: 'Male' | 'Female';
+  locale: string;
+  localeName: string;
+  styleList?: string[];
+  voiceType: string;
+}
+
+export interface AzureVoiceListResponse {
+  voices: AzureVoice[];
+  total: number;
+}
+
+// Cleanup types
+export interface CleanupResult {
+  success: boolean;
+  cleanedPaths: string[];
+  preservedPaths: string[];
+  message: string;
 }
 
 // Configuration types
@@ -80,20 +161,36 @@ export interface Configuration {
   burnSubtitles: boolean;
   whisper: WhisperConfig;
   ttsMethod: string;
+  // OpenAI TTS
   openaiTtsApiKey?: string;
   openaiVoice: string;
+  // Azure TTS
   azureKey?: string;
   azureRegion?: string;
   azureVoice: string;
+  // Fish TTS
   fishTtsApiKey?: string;
   fishTtsCharacter: string;
-  sfApiKey?: string;
+  fishTtsCharacterIdDict?: Record<string, string>;
+  // SiliconFlow Fish TTS
+  sfFishTtsApiKey?: string;
+  sfFishTtsMode?: string;
+  sfFishTtsVoice?: string;
+  // GPT-SoVITS
   sovitsCharacter: string;
   gptSovitsReferMode: number;
+  // Edge TTS
   edgeTtsVoice: string;
+  // SiliconFlow CosyVoice2
+  sfCosyvoice2ApiKey?: string;
+  // F5-TTS
+  f5ttsApiKey?: string;
+  // Custom TTS
   customTtsApiKey?: string;
   customTtsBaseUrl?: string;
   customTtsModel?: string;
+  // Other
+  sfApiKey?: string;
   ytbCookiesPath?: string;
   httpProxy?: string;
   hfMirror?: string;
@@ -198,13 +295,14 @@ export type TargetLanguage = typeof TARGET_LANGUAGES[number]['value'];
 
 // TTS methods
 export const TTS_METHODS = [
-  { value: 'openai_tts', label: 'OpenAI TTS' },
   { value: 'azure_tts', label: 'Azure TTS' },
-  { value: 'edge_tts', label: 'Edge TTS (Free)' },
+  { value: 'openai_tts', label: 'OpenAI TTS' },
   { value: 'fish_tts', label: 'Fish TTS' },
+  { value: 'sf_fish_tts', label: 'SiliconFlow FishTTS' },
+  { value: 'edge_tts', label: 'Edge TTS (Free)' },
   { value: 'gpt_sovits', label: 'GPT-SoVITS' },
   { value: 'sf_cosyvoice2', label: 'SiliconFlow CosyVoice2' },
-  { value: 'sf_fishtts', label: 'SiliconFlow FishTTS' },
+  { value: 'f5tts', label: 'F5-TTS' },
   { value: 'custom_tts', label: 'Custom TTS' },
 ] as const;
 

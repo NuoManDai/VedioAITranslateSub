@@ -12,6 +12,15 @@ from .config import (
     ApiValidateRequest,
     ApiValidateResponse
 )
+from .log import LogEntry, LogQueryResponse
+from .tts_config import (
+    TTSConfig,
+    TTSConfigUpdate,
+    TTSConfigResponse,
+    TTSMethod,
+    AzureVoice,
+    AzureVoiceListResponse
+)
 
 __all__ = [
     'Video',
@@ -34,4 +43,13 @@ __all__ = [
     'WhisperConfig',
     'ApiValidateRequest',
     'ApiValidateResponse',
+    # New models
+    'LogEntry',
+    'LogQueryResponse',
+    'TTSConfig',
+    'TTSConfigUpdate',
+    'TTSConfigResponse',
+    'TTSMethod',
+    'AzureVoice',
+    'AzureVoiceListResponse',
 ]

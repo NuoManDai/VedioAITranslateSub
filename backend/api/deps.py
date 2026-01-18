@@ -2,13 +2,20 @@
 API dependencies injection module
 """
 from pathlib import Path
-from typing import Generator
+from typing import Generator, TYPE_CHECKING
 import os
 
-# Project root directory
+if TYPE_CHECKING:
+    from services.log_service import LogStore
+
+# Project root directory (videoLongo/)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
-# Output directory for processed files
+# Backend directory (videoLongo/backend/)
+BACKEND_DIR = Path(__file__).parent.parent
+
+# Output directory for processed files (project_root/output/)
+# Unified with core modules which use relative path "output/"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
@@ -51,6 +58,15 @@ class AppState:
         self.subtitle_job = None
         self.dubbing_job = None
         self._cancel_requested = False
+        self._log_store = None
+    
+    @property
+    def log_store(self) -> 'LogStore':
+        """Get the log store singleton (lazy initialization)"""
+        if self._log_store is None:
+            from services.log_service import LogStore
+            self._log_store = LogStore()
+        return self._log_store
     
     def reset(self):
         """Reset all state"""
@@ -58,6 +74,9 @@ class AppState:
         self.subtitle_job = None
         self.dubbing_job = None
         self._cancel_requested = False
+        # Don't reset log_store, just clear it
+        if self._log_store:
+            self._log_store.clear()
     
     def request_cancel(self):
         """Request cancellation of current processing"""
@@ -75,3 +94,8 @@ class AppState:
 def get_app_state() -> AppState:
     """Get the application state singleton"""
     return AppState()
+
+
+def get_log_store() -> 'LogStore':
+    """Get the log store from application state"""
+    return get_app_state().log_store

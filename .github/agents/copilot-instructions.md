@@ -3,6 +3,8 @@
 Auto-generated from feature plans. Last updated: 2026-01-17
 
 ## Active Technologies
+- Python 3.10+ (backend), TypeScript 5.3+ (frontend) + FastAPI 0.109+, uvicorn, React 18, Ant Design 5.12, Vite 5 (002-dubbing-subtitle-separation)
+- 文件系统 (output/, gpt_log/, log/ 目录), config.yaml (002-dubbing-subtitle-separation)
 
 ### Backend (Python 3.10)
 - FastAPI ^0.109.0 (REST API 框架)
@@ -83,6 +85,7 @@ cd frontend && npm run test
 5. **Internationalization**: 复用 translations/*.json
 
 ## Recent Changes
+- 002-dubbing-subtitle-separation: Added Python 3.10+ (backend), TypeScript 5.3+ (frontend) + FastAPI 0.109+, uvicorn, React 18, Ant Design 5.12, Vite 5
 
 - 001-fastapi-react-refactor: 前后端分离重构
   - 后端: Python 3.10 + FastAPI

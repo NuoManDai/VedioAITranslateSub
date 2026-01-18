@@ -104,6 +104,18 @@ async def get_processing_status():
     """
     state = get_app_state()
     
+    # Try to restore subtitle job state if not exists but processing was completed
+    if (state.subtitle_job is None or state.subtitle_job.status not in ('running', 'completed')) and state.current_video:
+        restored_job = processing_service.restore_job_state('subtitle')
+        if restored_job:
+            state.subtitle_job = restored_job
+    
+    # Try to restore dubbing job state if not exists but processing was completed
+    if (state.dubbing_job is None or state.dubbing_job.status not in ('running', 'completed')) and state.current_video:
+        restored_job = processing_service.restore_job_state('dubbing')
+        if restored_job:
+            state.dubbing_job = restored_job
+    
     # Check for unfinished task
     has_unfinished = False
     if state.subtitle_job and state.subtitle_job.status == 'running':
@@ -115,11 +127,29 @@ async def get_processing_status():
     if not has_unfinished:
         has_unfinished = processing_service.detect_unfinished_task()
     
+    # Determine if subtitle processing can start
+    # Can start if: video exists AND no subtitle job running
+    can_start_subtitle = (
+        state.current_video is not None and
+        (state.subtitle_job is None or state.subtitle_job.status not in ('running', 'pending'))
+    )
+    
+    # Determine if dubbing processing can start
+    # Can start if: video exists AND subtitle completed AND no dubbing job running
+    can_start_dubbing = (
+        state.current_video is not None and
+        state.subtitle_job is not None and
+        state.subtitle_job.status == 'completed' and
+        (state.dubbing_job is None or state.dubbing_job.status not in ('running', 'pending'))
+    )
+    
     status = ProcessingStatus(
         video=state.current_video.model_dump(by_alias=True) if state.current_video else None,
         subtitle_job=state.subtitle_job,
         dubbing_job=state.dubbing_job,
-        has_unfinished_task=has_unfinished
+        has_unfinished_task=has_unfinished,
+        can_start_subtitle=can_start_subtitle,
+        can_start_dubbing=can_start_dubbing
     )
     return status.model_dump(by_alias=True)
 
@@ -177,3 +207,94 @@ async def download_srt():
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=subtitles.zip"}
     )
+
+
+# ============ Cleanup API ============
+
+@router.post("/cleanup/subtitle")
+async def cleanup_subtitle_files():
+    """
+    清理字幕处理相关的中间文件
+    
+    清理内容:
+    - log/ 目录
+    - gpt_log/ 目录
+    - *.srt 文件
+    - 保留 audio/raw.mp3
+    """
+    state = get_app_state()
+    
+    # Don't allow cleanup while processing
+    if state.subtitle_job and state.subtitle_job.status == 'running':
+        raise HTTPException(status_code=400, detail="字幕处理进行中，无法清理文件")
+    
+    try:
+        result = processing_service.cleanup_subtitle_files()
+        
+        # Reset subtitle job state
+        state.subtitle_job = None
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cleanup/dubbing")
+async def cleanup_dubbing_files():
+    """
+    清理配音处理相关的中间文件
+    
+    清理内容:
+    - audio/segs/ 目录
+    - audio/refers/ 目录
+    - audio/tmp/ 目录
+    """
+    state = get_app_state()
+    
+    # Don't allow cleanup while processing
+    if state.dubbing_job and state.dubbing_job.status == 'running':
+        raise HTTPException(status_code=400, detail="配音处理进行中，无法清理文件")
+    
+    try:
+        result = processing_service.cleanup_dubbing_files()
+        
+        # Reset dubbing job state
+        state.dubbing_job = None
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/cleanup/all")
+async def cleanup_all_files():
+    """
+    清理所有处理文件，重新开始
+    
+    清理内容:
+    - output/log/ 目录
+    - output/gpt_log/ 目录
+    - output/audio/ 目录 (包括所有音频文件)
+    - 所有 *.srt, output*.mp4, *.xlsx, *.json, *.mp3 文件
+    
+    保留:
+    - 原始视频文件
+    """
+    state = get_app_state()
+    
+    # Don't allow cleanup while processing
+    if state.subtitle_job and state.subtitle_job.status == 'running':
+        raise HTTPException(status_code=400, detail="字幕处理进行中，无法清理文件")
+    if state.dubbing_job and state.dubbing_job.status == 'running':
+        raise HTTPException(status_code=400, detail="配音处理进行中，无法清理文件")
+    
+    try:
+        result = processing_service.cleanup_all_files()
+        
+        # Reset all job states
+        state.subtitle_job = None
+        state.dubbing_job = None
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

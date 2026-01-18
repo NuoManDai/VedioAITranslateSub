@@ -9,6 +9,7 @@ import VideoUpload from '../components/VideoUpload'
 import YouTubeDownload from '../components/YouTubeDownload'
 import VideoPlayer from '../components/VideoPlayer'
 import ProcessingPanel from '../components/ProcessingPanel'
+import ConsolePanel from '../components/ConsolePanel'
 import type { Video, ProcessingStatus } from '../types'
 import { getCurrentVideo, deleteCurrentVideo, getProcessingStatus } from '../services/api'
 
@@ -160,7 +161,11 @@ export default function Home() {
             </div>
           }
         >
-          <VideoPlayer video={video} onDelete={handleDelete} />
+          <VideoPlayer 
+            video={video} 
+            onDelete={handleDelete} 
+            subtitleCompleted={status?.subtitleJob?.status === 'completed'}
+          />
         </Card>
       )}
 
@@ -184,6 +189,17 @@ export default function Home() {
             onStatusUpdate={handleStatusUpdate}
           />
         </Card>
+      )}
+
+      {/* Console Panel - Always visible when video is loaded */}
+      {video && (
+        <ConsolePanel 
+          isProcessing={
+            status?.subtitleJob?.status === 'running' || 
+            status?.dubbingJob?.status === 'running'
+          }
+          className="mt-6"
+        />
       )}
     </div>
   )

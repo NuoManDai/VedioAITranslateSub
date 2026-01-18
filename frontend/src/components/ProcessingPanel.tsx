@@ -2,8 +2,8 @@
  * Processing Panel Component
  */
 import { useState, useEffect } from 'react'
-import { Steps, Progress, message, Typography } from 'antd'
-import { PlayCircleOutlined, PauseOutlined, DownloadOutlined } from '@ant-design/icons'
+import { Steps, Progress, message, Typography, Modal, Tabs } from 'antd'
+import { PlayCircleOutlined, PauseOutlined, DownloadOutlined, ReloadOutlined, FileTextOutlined, SoundOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { Video, ProcessingStatus, ProcessingJob, StageStatus, ProcessingStage } from '../types'
 import {
@@ -12,9 +12,14 @@ import {
   cancelProcessing,
   getProcessingStatus,
   getSrtDownloadUrl,
+  cleanupSubtitleFiles,
+  cleanupDubbingFiles,
+  cleanupAllFiles,
 } from '../services/api'
+import StageOutputFiles from './StageOutputFiles'
 
 const { Text } = Typography
+const { confirm } = Modal
 
 interface ProcessingPanelProps {
   video: Video
@@ -22,7 +27,7 @@ interface ProcessingPanelProps {
   onStatusUpdate?: (status: ProcessingStatus) => void
 }
 
-const POLL_INTERVAL = 2000 // 2 seconds
+const POLL_INTERVAL = 3000 // 3 seconds
 
 // Default subtitle processing stages
 const DEFAULT_SUBTITLE_STAGES: ProcessingStage[] = [
@@ -61,6 +66,10 @@ export default function ProcessingPanel({
   const isDubbingProcessing = dubbingJob?.status === 'running'
   const isProcessing = isSubtitleProcessing || isDubbingProcessing
   const subtitleCompleted = subtitleJob?.status === 'completed'
+  
+  // Use backend-provided flags for button states
+  const canStartSubtitle = status?.canStartSubtitle ?? false
+  const canStartDubbing = status?.canStartDubbing ?? false
 
   // Poll for status updates
   useEffect(() => {
@@ -118,6 +127,67 @@ export default function ProcessingPanel({
     }
   }
 
+  const handleRestartSubtitle = () => {
+    confirm({
+      title: t('confirmRestartSubtitle'),
+      content: t('confirmRestartSubtitleDesc'),
+      okText: t('yes'),
+      cancelText: t('no'),
+      onOk: async () => {
+        try {
+          await cleanupSubtitleFiles()
+          const newStatus = await getProcessingStatus()
+          setStatus(newStatus)
+          onStatusUpdate?.(newStatus)
+          message.success(t('cleanupSuccess'))
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : t('error'))
+        }
+      },
+    })
+  }
+
+  const handleRestartDubbing = () => {
+    confirm({
+      title: t('confirmRestartDubbing'),
+      content: t('confirmRestartDubbingDesc'),
+      okText: t('yes'),
+      cancelText: t('no'),
+      onOk: async () => {
+        try {
+          await cleanupDubbingFiles()
+          const newStatus = await getProcessingStatus()
+          setStatus(newStatus)
+          onStatusUpdate?.(newStatus)
+          message.success(t('cleanupSuccess'))
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : t('error'))
+        }
+      },
+    })
+  }
+
+  const handleCleanupAll = () => {
+    confirm({
+      title: t('confirmCleanupAll') || '清理所有缓存',
+      content: t('confirmCleanupAllDesc') || '这将删除所有处理中间文件（包括音频、字幕、日志等），仅保留原始视频。确定要重新开始吗？',
+      okText: t('yes'),
+      cancelText: t('no'),
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await cleanupAllFiles()
+          const newStatus = await getProcessingStatus()
+          setStatus(newStatus)
+          onStatusUpdate?.(newStatus)
+          message.success(t('cleanupAllSuccess') || '已清理所有缓存，可以重新开始处理')
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : t('error'))
+        }
+      },
+    })
+  }
+
   const getStageStatus = (stage: { status: StageStatus }): 'wait' | 'process' | 'finish' | 'error' => {
     switch (stage.status) {
       case 'completed':
@@ -133,21 +203,17 @@ export default function ProcessingPanel({
 
   const renderJobProgress = (
     job: ProcessingJob | undefined, 
-    title: string, 
     defaultStages: ProcessingStage[],
-    showDefault: boolean = false
+    showOutputFiles: boolean = true
   ) => {
-    const stages = job?.stages || (showDefault ? defaultStages : null)
-    if (!stages) return null
-
+    const stages = job?.stages || defaultStages
     const jobStatus = job?.status || 'pending'
     const progress = job?.progress || 0
     const isActive = job !== undefined
 
     return (
-      <div className="processing-job-card mb-6 p-5 rounded-2xl bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 shadow-sm">
+      <div className="processing-job-content">
         <div className="flex items-center justify-between mb-4">
-          <Text strong className="text-slate-800 text-lg">{title}</Text>
           <span className={`status-tag ${
             jobStatus === 'completed' ? 'status-tag-success' :
             jobStatus === 'running' ? 'status-tag-processing' :
@@ -156,6 +222,7 @@ export default function ProcessingPanel({
           }`}>
             {isActive ? t(jobStatus) : t('pending')}
           </span>
+          <Text className="text-slate-500 text-sm">{Math.round(progress)}%</Text>
         </div>
         
         <Progress 
@@ -170,20 +237,21 @@ export default function ProcessingPanel({
             '100%': '#764ba2',
           }}
           trailColor="rgba(0,0,0,0.06)"
+          showInfo={false}
         />
 
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4 overflow-x-auto pb-2">
           <Steps
             size="small"
             className="modern-steps min-w-max"
             current={job ? job.stages.findIndex(s => s.status === 'running') : -1}
             items={stages.map((stage) => ({
-              title: <span className="text-slate-600 text-xs whitespace-nowrap">{stage.displayName}</span>,
+              title: <span className="text-slate-600 text-xs">{stage.displayName}</span>,
               status: getStageStatus(stage),
               description: stage.status === 'running' 
-                ? <span className="text-purple-500 text-xs">
+                ? <div className="text-purple-500 text-xs mt-1 break-words max-w-[100px]">
                     {stage.message || (stage.progress ? `${Math.round(stage.progress)}%` : '处理中...')}
-                  </span>
+                  </div>
                 : stage.status === 'completed'
                 ? <span className="text-green-500 text-xs">✓</span>
                 : stage.status === 'failed'
@@ -198,70 +266,169 @@ export default function ProcessingPanel({
             {job.errorMessage}
           </div>
         )}
+
+        {/* Show output files for completed stages */}
+        {showOutputFiles && stages.some(s => s.status === 'completed') && (
+          <StageOutputFiles stages={stages} />
+        )}
       </div>
     )
   }
 
+  // Tab items configuration
+  const tabItems = [
+    {
+      key: 'subtitle',
+      label: (
+        <span className="flex items-center gap-2">
+          <FileTextOutlined />
+          {t('subtitleProcessing')}
+          {subtitleCompleted && <CheckCircleOutlined className="text-green-500" />}
+        </span>
+      ),
+      children: (
+        <div className="p-4">
+          {renderJobProgress(subtitleJob, DEFAULT_SUBTITLE_STAGES)}
+          
+          <div className="flex flex-wrap gap-3 mt-6 pt-4 border-t border-slate-200">
+            {canStartSubtitle && !isProcessing && (
+              <button
+                className="btn-primary flex items-center gap-2"
+                onClick={handleStartSubtitle}
+              >
+                <PlayCircleOutlined />
+                {t('startSubtitle')}
+              </button>
+            )}
+            
+            {isSubtitleProcessing && (
+              <button
+                className="btn-danger flex items-center gap-2"
+                onClick={handleCancel}
+              >
+                <PauseOutlined />
+                {t('cancel')}
+              </button>
+            )}
+
+            {subtitleCompleted && (
+              <>
+                <a
+                  className="btn-secondary flex items-center gap-2"
+                  href={getSrtDownloadUrl()}
+                >
+                  <DownloadOutlined />
+                  {t('download_srt')}
+                </a>
+                
+                {!isProcessing && (
+                  <button
+                    className="btn-warning flex items-center gap-2"
+                    onClick={handleRestartSubtitle}
+                  >
+                    <ReloadOutlined />
+                    {t('restartSubtitle')}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'dubbing',
+      label: (
+        <span className="flex items-center gap-2">
+          <SoundOutlined />
+          {t('dubbingProcessing')}
+          {dubbingJob?.status === 'completed' && <CheckCircleOutlined className="text-green-500" />}
+        </span>
+      ),
+      // Tab is always accessible
+      children: (
+        <div className="p-4">
+          {/* Show warning if subtitle not completed */}
+          {!subtitleCompleted && !dubbingJob && (
+            <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm flex items-center gap-2">
+              <span>⚠️</span>
+              <span>{t('dubbingRequiresSubtitle')}</span>
+            </div>
+          )}
+          
+          {/* Always show progress stages */}
+          {renderJobProgress(dubbingJob, DEFAULT_DUBBING_STAGES)}
+          
+          <div className="flex flex-wrap gap-3 mt-6 pt-4 border-t border-slate-200">
+            {/* Show start button - disabled if subtitle not completed */}
+            {!isProcessing && !dubbingJob?.status && (
+              <button
+                className={`flex items-center gap-2 ${canStartDubbing ? 'btn-primary' : 'btn-disabled opacity-50 cursor-not-allowed'}`}
+                onClick={canStartDubbing ? handleStartDubbing : undefined}
+                disabled={!canStartDubbing}
+                title={!canStartDubbing ? t('dubbingRequiresSubtitle') : ''}
+              >
+                <PlayCircleOutlined />
+                {t('startDubbing')}
+              </button>
+            )}
+            
+            {/* Active dubbing button when can start and no job yet */}
+            {canStartDubbing && !isProcessing && dubbingJob?.status === 'failed' && (
+              <button
+                className="btn-primary flex items-center gap-2"
+                onClick={handleStartDubbing}
+              >
+                <PlayCircleOutlined />
+                {t('startDubbing')}
+              </button>
+            )}
+            
+            {isDubbingProcessing && (
+              <button
+                className="btn-danger flex items-center gap-2"
+                onClick={handleCancel}
+              >
+                <PauseOutlined />
+                {t('cancel')}
+              </button>
+            )}
+
+            {dubbingJob?.status === 'completed' && !isProcessing && (
+              <button
+                className="btn-warning flex items-center gap-2"
+                onClick={handleRestartDubbing}
+              >
+                <ReloadOutlined />
+                {t('restartDubbing')}
+              </button>
+            )}
+          </div>
+        </div>
+      ),
+    },
+  ]
+
   return (
-    <div className="processing-panel space-y-6">
-      {/* Subtitle Processing - Always show */}
-      {renderJobProgress(
-        subtitleJob, 
-        t('subtitleProcessing'), 
-        DEFAULT_SUBTITLE_STAGES, 
-        true // Always show default stages
-      )}
-
-      {/* Dubbing Processing - Show only after subtitle completed */}
-      {subtitleCompleted && renderJobProgress(
-        dubbingJob, 
-        t('dubbingProcessing'), 
-        DEFAULT_DUBBING_STAGES,
-        true
-      )}
-
-      {/* Action Buttons */}
-      <div className="flex flex-wrap gap-4 pt-2">
-        {!subtitleJob && !isProcessing && (
-          <button
-            className="btn-primary flex items-center gap-2 text-white"
-            onClick={handleStartSubtitle}
-          >
-            <PlayCircleOutlined />
-            {t('startSubtitle')}
-          </button>
-        )}
-
-        {subtitleCompleted && !dubbingJob && (
-          <button
-            className="btn-primary flex items-center gap-2 text-white"
-            onClick={handleStartDubbing}
-          >
-            <PlayCircleOutlined />
-            {t('startDubbing')}
-          </button>
-        )}
-
-        {isProcessing && (
-          <button
-            className="btn-danger flex items-center gap-2 text-white"
-            onClick={handleCancel}
-          >
-            <PauseOutlined />
-            {t('cancel')}
-          </button>
-        )}
-
-        {subtitleCompleted && (
-          <a
-            className="btn-secondary flex items-center gap-2"
-            href={getSrtDownloadUrl()}
-          >
-            <DownloadOutlined />
-            {t('download_srt')}
-          </a>
-        )}
-      </div>
+    <div className="processing-panel">
+      <Tabs
+        defaultActiveKey="subtitle"
+        items={tabItems}
+        className="processing-tabs"
+        type="card"
+        tabBarExtraContent={
+          !isProcessing && (
+            <button
+              className="btn-danger flex items-center gap-2 text-sm"
+              onClick={handleCleanupAll}
+              title={t('cleanupAllTooltip') || '清理所有缓存并重新开始'}
+            >
+              <DeleteOutlined />
+              {t('cleanupAll') || '清理缓存'}
+            </button>
+          )
+        }
+      />
     </div>
   )
 }

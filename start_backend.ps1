@@ -3,7 +3,7 @@
 
 param(
     [int]$Port = 8000,
-    [string]$Host = "127.0.0.1"
+    [string]$BindAddress = "127.0.0.1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,11 +36,11 @@ Set-Location $ProjectRoot
 
 # Start the FastAPI server
 Write-Host ""
-Write-Host "Starting FastAPI server on http://${Host}:${Port}" -ForegroundColor Green
-Write-Host "Swagger UI available at http://${Host}:${Port}/docs" -ForegroundColor Green
+Write-Host "Starting FastAPI server on http://${BindAddress}:${Port}" -ForegroundColor Green
+Write-Host "Swagger UI available at http://${BindAddress}:${Port}/docs" -ForegroundColor Green
 Write-Host ""
 Write-Host "Press Ctrl+C to stop the server" -ForegroundColor Yellow
 Write-Host ""
 
 # Run uvicorn
-python -m uvicorn backend.main:app --host $Host --port $Port --reload
+python -m uvicorn backend.main:app --host $BindAddress --port $Port --reload

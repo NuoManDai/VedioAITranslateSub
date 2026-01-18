@@ -141,6 +141,16 @@ class ConfigService:
                 elevenlabs_api_key=whisper_data.get('elevenlabs_api_key')
             )
         
+        # Get TTS configurations from nested structures
+        sf_fish_tts = data.get('sf_fish_tts', {})
+        openai_tts = data.get('openai_tts', {})
+        azure_tts = data.get('azure_tts', {})
+        fish_tts = data.get('fish_tts', {})
+        gpt_sovits = data.get('gpt_sovits', {})
+        edge_tts = data.get('edge_tts', {})
+        sf_cosyvoice2 = data.get('sf_cosyvoice2', {})
+        f5tts = data.get('f5tts', {})
+        
         return Configuration(
             display_language=data.get('display_language', '简体中文'),
             api=api_config or Configuration().api,
@@ -151,20 +161,36 @@ class ConfigService:
             burn_subtitles=data.get('burn_subtitles', True),
             whisper=whisper_config or Configuration().whisper,
             tts_method=data.get('tts_method', 'edge_tts'),
-            openai_tts_api_key=data.get('openai_tts_api_key'),
-            openai_voice=data.get('openai_voice', 'alloy'),
-            azure_key=data.get('azure_key'),
-            azure_region=data.get('azure_region'),
-            azure_voice=data.get('azure_voice', 'zh-CN-XiaoxiaoNeural'),
-            fish_tts_api_key=data.get('fish_tts_api_key'),
-            fish_tts_character=data.get('fish_tts_character', ''),
-            sf_api_key=data.get('sf_api_key'),
-            sovits_character=data.get('sovits_character', ''),
-            gpt_sovits_refer_mode=data.get('gpt_sovits_refer_mode', 1),
-            edge_tts_voice=data.get('edge_tts_voice', 'zh-CN-XiaoxiaoNeural'),
+            # OpenAI TTS
+            openai_tts_api_key=openai_tts.get('api_key'),
+            openai_voice=openai_tts.get('voice', 'alloy'),
+            # Azure TTS
+            azure_key=azure_tts.get('api_key'),
+            azure_region=azure_tts.get('region'),
+            azure_voice=azure_tts.get('voice', 'zh-CN-XiaoxiaoNeural'),
+            # Fish TTS
+            fish_tts_api_key=fish_tts.get('api_key'),
+            fish_tts_character=fish_tts.get('character', 'AD学姐'),
+            # SiliconFlow Fish TTS
+            sf_fish_tts_api_key=sf_fish_tts.get('api_key'),
+            sf_fish_tts_mode=sf_fish_tts.get('mode', 'preset'),
+            sf_fish_tts_voice=sf_fish_tts.get('voice', 'anna'),
+            # GPT-SoVITS
+            sovits_character=gpt_sovits.get('character', ''),
+            gpt_sovits_refer_mode=gpt_sovits.get('refer_mode', 3),
+            # Edge TTS
+            edge_tts_voice=edge_tts.get('voice', 'zh-CN-XiaoxiaoNeural'),
+            # SiliconFlow CosyVoice2
+            sf_cosyvoice2_api_key=sf_cosyvoice2.get('api_key'),
+            # F5-TTS
+            f5tts_api_key=f5tts.get('302_api'),
+            # Custom TTS
             custom_tts_api_key=data.get('custom_tts_api_key'),
             custom_tts_base_url=data.get('custom_tts_base_url'),
             custom_tts_model=data.get('custom_tts_model'),
+            # Legacy
+            sf_api_key=data.get('sf_api_key'),
+            # Other
             ytb_cookies_path=data.get('ytb_cookies_path'),
             http_proxy=data.get('http_proxy'),
             hf_mirror=data.get('hf_mirror')

@@ -32,10 +32,11 @@ def translate_lines(lines, previous_content_prompt, after_cotent_prompt, things_
                 result = ask_gpt(prompt+retry* " ", resp_type='json', valid_def=valid_faith, log_title=f'translate_{step_name}')
             elif step_name == 'expressiveness':
                 result = ask_gpt(prompt+retry* " ", resp_type='json', valid_def=valid_express, log_title=f'translate_{step_name}')
-            if len(lines.split('\n')) == len(result):
+            # Check if result length matches expected length
+            if len(result) == length:
                 return result
             if retry != 2:
-                console.print(f'[yellow]⚠️ {step_name.capitalize()} translation of block {index} failed, Retry...[/yellow]')
+                console.print(f'[yellow]⚠️ {step_name.capitalize()} translation of block {index} failed (expected {length} items, got {len(result)}), Retry...[/yellow]')
         raise ValueError(f'[red]❌ {step_name.capitalize()} translation of block {index} failed after 3 retries. Please check `output/gpt_log/error.json` for more details.[/red]')
 
     ## Step 1: Faithful to the Original Text
@@ -77,13 +78,37 @@ def translate_lines(lines, previous_content_prompt, after_cotent_prompt, things_
 
     console.print(table)
 
-    translate_result = "\n".join([express_result[i]["free"].replace('\n', ' ').strip() for i in express_result])
+    # For CJK languages (Chinese, Japanese, Korean), preserve LLM's sentence breaks
+    # as they provide better semantic segmentation than source word-level timestamps
+    whisper_language = load_key("whisper.language")
+    detected_language = load_key("whisper.detected_language") if whisper_language == 'auto' else whisper_language
+    cjk_languages = ['ja', 'zh', 'ko', 'japanese', 'chinese', 'korean']
+    
+    if detected_language.lower() in cjk_languages:
+        # Keep the \n from LLM translation for CJK languages
+        # This provides better sentence segmentation for subtitle display
+        all_free_lines = []
+        for i in express_result:
+            free_text = express_result[i]["free"].strip()
+            # Split by \n and add each line
+            all_free_lines.extend([line.strip() for line in free_text.split('\n') if line.strip()])
+        translate_result = "\n".join(all_free_lines)
+        
+        # Also update the source lines to match translation line count
+        # by joining all source text and returning it as single block
+        source_result = lines.replace('\n', '')  # Join source as one block
+        
+        console.print(f"[blue]📝 CJK mode: Using LLM sentence breaks ({len(all_free_lines)} lines)[/blue]")
+        return translate_result, source_result
+    else:
+        # For non-CJK languages, keep original behavior (match source line count)
+        translate_result = "\n".join([express_result[i]["free"].replace('\n', ' ').strip() for i in express_result])
 
-    if len(lines.split('\n')) != len(translate_result.split('\n')):
-        console.print(Panel(f'[red]❌ Translation of block {index} failed, Length Mismatch, Please check `output/gpt_log/translate_expressiveness.json`[/red]'))
-        raise ValueError(f'Origin ···{lines}···,\nbut got ···{translate_result}···')
+        if len(lines.split('\n')) != len(translate_result.split('\n')):
+            console.print(Panel(f'[red]❌ Translation of block {index} failed, Length Mismatch, Please check `output/gpt_log/translate_expressiveness.json`[/red]'))
+            raise ValueError(f'Origin ···{lines}···,\nbut got ···{translate_result}···')
 
-    return translate_result, lines
+        return translate_result, lines
 
 
 if __name__ == '__main__':

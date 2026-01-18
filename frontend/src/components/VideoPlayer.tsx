@@ -1,7 +1,8 @@
 /**
  * Video Player Component
  */
-import { Button, Typography, Tooltip } from 'antd'
+import { useState, useEffect } from 'react'
+import { Button, Typography, Tooltip, Switch } from 'antd'
 import { DeleteOutlined, ClockCircleOutlined, FileOutlined, YoutubeOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import type { Video } from '../types'
@@ -12,12 +13,21 @@ const { Text } = Typography
 interface VideoPlayerProps {
   video: Video
   onDelete?: () => void
+  subtitleCompleted?: boolean
 }
 
-export default function VideoPlayer({ video, onDelete }: VideoPlayerProps) {
+export default function VideoPlayer({ video, onDelete, subtitleCompleted = false }: VideoPlayerProps) {
   const { t } = useTranslation()
+  const [showSubtitled, setShowSubtitled] = useState(subtitleCompleted)
 
-  const videoUrl = getVideoStreamUrl(video.filename)
+  // Update showSubtitled when subtitleCompleted changes
+  useEffect(() => {
+    if (subtitleCompleted) {
+      setShowSubtitled(true)
+    }
+  }, [subtitleCompleted])
+
+  const videoUrl = getVideoStreamUrl(video.filename, showSubtitled)
 
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '-'
@@ -43,6 +53,7 @@ export default function VideoPlayer({ video, onDelete }: VideoPlayerProps) {
       {/* Video Player */}
       <div className="video-container">
         <video
+          key={videoUrl} // Force re-render when URL changes
           src={videoUrl}
           controls
           className="w-full h-full"
@@ -50,6 +61,18 @@ export default function VideoPlayer({ video, onDelete }: VideoPlayerProps) {
           Your browser does not support the video tag.
         </video>
       </div>
+
+      {/* Subtitle Toggle (show when subtitles are available) */}
+      {subtitleCompleted && (
+        <div className="flex items-center gap-2 px-2">
+          <span className="text-sm text-gray-500">{t('showSubtitles')}</span>
+          <Switch 
+            size="small" 
+            checked={showSubtitled} 
+            onChange={setShowSubtitled}
+          />
+        </div>
+      )}
 
       {/* Video Info Bar */}
       <div className="video-info flex items-center justify-between flex-wrap gap-4">

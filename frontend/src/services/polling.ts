@@ -23,7 +23,7 @@ export function createPolling<T>(options: PollOptions<T>) {
     onData,
     onError,
     shouldStop,
-    interval = 2000,
+    interval = 3000,
   } = options;
 
   let timerId: number | null = null;

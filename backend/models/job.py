@@ -118,6 +118,8 @@ class ProcessingStatus(BaseModel):
     subtitle_job: Optional[ProcessingJob] = Field(default=None, alias='subtitleJob', serialization_alias='subtitleJob')
     dubbing_job: Optional[ProcessingJob] = Field(default=None, alias='dubbingJob', serialization_alias='dubbingJob')
     has_unfinished_task: bool = Field(default=False, alias='hasUnfinishedTask', serialization_alias='hasUnfinishedTask', description="是否有未完成的任务")
+    can_start_subtitle: bool = Field(default=False, alias='canStartSubtitle', serialization_alias='canStartSubtitle', description="是否可以开始字幕处理")
+    can_start_dubbing: bool = Field(default=False, alias='canStartDubbing', serialization_alias='canStartDubbing', description="是否可以开始配音处理")
 
     class Config:
         populate_by_name = True

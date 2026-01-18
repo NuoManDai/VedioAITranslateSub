@@ -55,21 +55,36 @@ class Configuration(BaseModel):
     whisper: WhisperConfig = Field(default_factory=WhisperConfig)
     
     # TTS 设置
-    tts_method: str = Field(default='openai_tts', description="TTS 方法")
+    tts_method: str = Field(default='edge_tts', description="TTS 方法")
+    # OpenAI TTS
     openai_tts_api_key: Optional[str] = Field(None, description="OpenAI TTS API Key")
     openai_voice: str = Field(default='alloy', description="OpenAI 语音")
+    # Azure TTS
     azure_key: Optional[str] = Field(None, description="Azure Key")
     azure_region: Optional[str] = Field(None, description="Azure Region")
     azure_voice: str = Field(default='zh-CN-XiaoxiaoNeural', description="Azure 语音")
+    # Fish TTS
     fish_tts_api_key: Optional[str] = Field(None, description="Fish TTS API Key")
-    fish_tts_character: str = Field(default='', description="Fish TTS 角色")
-    sf_api_key: Optional[str] = Field(None, description="SiliconFlow API Key")
+    fish_tts_character: str = Field(default='AD学姐', description="Fish TTS 角色")
+    # SiliconFlow Fish TTS
+    sf_fish_tts_api_key: Optional[str] = Field(None, description="SiliconFlow Fish TTS API Key")
+    sf_fish_tts_mode: str = Field(default='preset', description="SiliconFlow Fish TTS 模式")
+    sf_fish_tts_voice: str = Field(default='anna', description="SiliconFlow Fish TTS 语音")
+    # GPT-SoVITS
     sovits_character: str = Field(default='', description="SoVITS 角色")
-    gpt_sovits_refer_mode: int = Field(default=1, description="GPT-SoVITS 参考模式")
+    gpt_sovits_refer_mode: int = Field(default=3, description="GPT-SoVITS 参考模式")
+    # Edge TTS
     edge_tts_voice: str = Field(default='zh-CN-XiaoxiaoNeural', description="Edge TTS 语音")
+    # SiliconFlow CosyVoice2
+    sf_cosyvoice2_api_key: Optional[str] = Field(None, description="SiliconFlow CosyVoice2 API Key")
+    # F5-TTS
+    f5tts_api_key: Optional[str] = Field(None, description="F5-TTS 302ai API Key")
+    # Custom TTS
     custom_tts_api_key: Optional[str] = Field(None, description="Custom TTS API Key")
     custom_tts_base_url: Optional[str] = Field(None, description="Custom TTS Base URL")
     custom_tts_model: Optional[str] = Field(None, description="Custom TTS Model")
+    # Legacy
+    sf_api_key: Optional[str] = Field(None, description="SiliconFlow API Key")
     
     # YouTube cookies
     ytb_cookies_path: Optional[str] = Field(None, description="YouTube Cookies 路径")
@@ -98,20 +113,36 @@ class ConfigurationUpdate(BaseModel):
     burn_subtitles: Optional[bool] = None
     whisper: Optional[WhisperConfig] = None
     tts_method: Optional[str] = None
+    # OpenAI TTS
     openai_tts_api_key: Optional[str] = None
     openai_voice: Optional[str] = None
+    # Azure TTS
     azure_key: Optional[str] = None
     azure_region: Optional[str] = None
     azure_voice: Optional[str] = None
+    # Fish TTS
     fish_tts_api_key: Optional[str] = None
     fish_tts_character: Optional[str] = None
-    sf_api_key: Optional[str] = None
+    # SiliconFlow Fish TTS
+    sf_fish_tts_api_key: Optional[str] = None
+    sf_fish_tts_mode: Optional[str] = None
+    sf_fish_tts_voice: Optional[str] = None
+    # GPT-SoVITS
     sovits_character: Optional[str] = None
     gpt_sovits_refer_mode: Optional[int] = None
+    # Edge TTS
     edge_tts_voice: Optional[str] = None
+    # SiliconFlow CosyVoice2
+    sf_cosyvoice2_api_key: Optional[str] = None
+    # F5-TTS
+    f5tts_api_key: Optional[str] = None
+    # Custom TTS
     custom_tts_api_key: Optional[str] = None
     custom_tts_base_url: Optional[str] = None
     custom_tts_model: Optional[str] = None
+    # Legacy
+    sf_api_key: Optional[str] = None
+    # Other
     ytb_cookies_path: Optional[str] = None
     http_proxy: Optional[str] = None
     hf_mirror: Optional[str] = None

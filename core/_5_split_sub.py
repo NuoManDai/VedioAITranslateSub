@@ -91,6 +91,11 @@ def split_align_subs(src_lines: List[str], tr_lines: List[str]):
     src_lines = [item for sublist in src_lines for item in (sublist if isinstance(sublist, list) else [sublist])]
     tr_lines = [item for sublist in tr_lines for item in (sublist if isinstance(sublist, list) else [sublist])]
     
+    # 确保 src_lines 和 tr_lines 长度一致
+    min_len = min(len(src_lines), len(tr_lines))
+    src_lines = src_lines[:min_len]
+    tr_lines = tr_lines[:min_len]
+    
     return src_lines, tr_lines, remerged_tr_lines
 
 def split_for_sub_main():
@@ -116,7 +121,13 @@ def split_for_sub_main():
         # 更新源数据继续下一轮分割
         src, trans = split_src, split_trans
 
-    # 确保二者有相同的长度，防止报错
+    # 确保 split_src 和 split_trans 有相同的长度，防止报错
+    if len(split_src) > len(split_trans):
+        split_trans += [''] * (len(split_src) - len(split_trans))
+    elif len(split_trans) > len(split_src):
+        split_src += [''] * (len(split_trans) - len(split_src))
+    
+    # 确保 src 和 remerged 有相同的长度，防止报错
     if len(src) > len(remerged):
         remerged += [None] * (len(src) - len(remerged))
     elif len(remerged) > len(src):

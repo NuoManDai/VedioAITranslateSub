@@ -40,17 +40,21 @@ class VideoService:
         """Save an uploaded video file"""
         state = get_app_state()
         
-        # Generate unique filename
+        # Use original filename (sanitized) - core modules expect video in output/ root
         original_name = file.filename or "video.mp4"
-        file_ext = Path(original_name).suffix
-        unique_filename = f"{uuid.uuid4().hex[:8]}_{original_name}"
+        # Sanitize filename: replace spaces and special chars
+        safe_name = "".join(c if c.isalnum() or c in '._-' else '_' for c in original_name)
         
-        # Create video subdirectory if not exists
-        video_dir = self.output_dir / "video"
-        video_dir.mkdir(exist_ok=True)
+        # Save file directly to output/ (not video/ subdirectory)
+        # Core processing modules expect a single video in output/
+        file_path = self.output_dir / safe_name
         
-        # Save file
-        file_path = video_dir / unique_filename
+        # If file already exists, add uuid prefix
+        if file_path.exists():
+            file_ext = Path(safe_name).suffix
+            base_name = Path(safe_name).stem
+            safe_name = f"{uuid.uuid4().hex[:8]}_{base_name}{file_ext}"
+            file_path = self.output_dir / safe_name
         
         try:
             with open(file_path, "wb") as buffer:
@@ -65,7 +69,7 @@ class VideoService:
             
             # Create video record
             video = Video(
-                filename=unique_filename,
+                filename=safe_name,
                 filepath=str(file_path.relative_to(get_project_root())),
                 source_type='upload',
                 status='ready',
@@ -175,35 +179,31 @@ class VideoService:
     
     def detect_current_video(self) -> Optional[Video]:
         """Try to detect current video from output directory"""
-        # Look for video files in output directory
+        # Look for video files in output directory (not subdirectories)
         video_extensions = {'.mp4', '.webm', '.mkv', '.avi', '.mov'}
         
-        def find_latest_video(search_dir: Path) -> Optional[Path]:
-            for ext in video_extensions:
-                videos = list(search_dir.glob(f"*{ext}"))
-                if videos:
-                    return max(videos, key=lambda p: p.stat().st_mtime)
+        all_videos = []
+        for ext in video_extensions:
+            # Exclude generated output files (output_*.mp4, output_dub.mp4, etc.)
+            videos = [v for v in self.output_dir.glob(f"*{ext}") 
+                     if not v.name.startswith("output")]
+            all_videos.extend(videos)
+        
+        if not all_videos:
             return None
         
-        # Check main output dir first, then video subdir
-        latest = find_latest_video(self.output_dir)
-        if not latest:
-            video_dir = self.output_dir / "video"
-            if video_dir.exists():
-                latest = find_latest_video(video_dir)
+        # Get the most recent video
+        latest = max(all_videos, key=lambda p: p.stat().st_mtime)
         
-        if latest:
-            # Get duration in background - don't block
-            duration = get_video_duration(latest)
-            
-            return Video(
-                filename=latest.name,
-                filepath=str(latest.relative_to(get_project_root())),
-                source_type='upload',
-                status='ready',
-                file_size=latest.stat().st_size,
-                duration=duration,
-                created_at=datetime.fromtimestamp(latest.stat().st_mtime)
-            )
+        # Get duration
+        duration = get_video_duration(latest)
         
-        return None
+        return Video(
+            filename=latest.name,
+            filepath=str(latest.relative_to(get_project_root())),
+            source_type='upload',
+            status='ready',
+            file_size=latest.stat().st_size,
+            duration=duration,
+            created_at=datetime.fromtimestamp(latest.stat().st_mtime)
+        )

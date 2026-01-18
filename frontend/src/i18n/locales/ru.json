@@ -106,5 +106,21 @@
     "No NVIDIA GPU detected": "GPU NVIDIA не обнаружен",
     "No NVIDIA GPU detected or NVIDIA drivers not properly installed": "GPU NVIDIA не обнаружен или драйверы NVIDIA установлены неправильно",
     "LLM JSON Format Support": "Поддержка формата JSON для LLM",
-    "Enable if your LLM supports JSON mode output": "Включите, если ваш LLM поддерживает вывод в формате JSON"
+    "Enable if your LLM supports JSON mode output": "Включите, если ваш LLM поддерживает вывод в формате JSON",
+    "Console": "Консоль",
+    "idle": "Бездействует",
+    "All Levels": "Все уровни",
+    "All Sources": "Все источники",
+    "Subtitle": "Субтитры",
+    "Dubbing": "Дубляж",
+    "Auto Scroll": "Автопрокрутка",
+    "Clear": "Очистить",
+    "No logs yet": "Пока нет журналов",
+    "restartSubtitle": "Перезапустить субтитры",
+    "restartDubbing": "Перезапустить дубляж",
+    "confirmRestartSubtitle": "Перезапустить обработку субтитров?",
+    "confirmRestartSubtitleDesc": "Это удалит все промежуточные файлы обработки субтитров. Оригинальные видео и аудио будут сохранены.",
+    "confirmRestartDubbing": "Перезапустить обработку дубляжа?",
+    "confirmRestartDubbingDesc": "Это удалит все промежуточные файлы обработки дубляжа. Оригинальные видео и субтитры будут сохранены.",
+    "cleanupSuccess": "Очистка завершена, готов к перезапуску обработки"
 }

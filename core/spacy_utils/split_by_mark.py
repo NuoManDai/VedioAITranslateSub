@@ -8,36 +8,92 @@ from rich import print as rprint
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-def split_japanese_by_punctuation(text):
+# Japanese sentence-ending particles and expressions
+JA_SENTENCE_ENDERS = [
+    # Polite endings (most reliable)
+    'ます', 'です', 'ました', 'でした', 'ません', 'ください', 'ましょう',
+    # Plain verb endings
+    'だ', 'た', 'る',
+    # Sentence-final particles
+    'ね', 'よ', 'わ', 'ぞ', 'な', 'さ', 'の', 'か',
+    # Combined particles
+    'かな', 'かね', 'かしら', 'よね', 'のよ', 'わよ',
+    # Explanatory forms
+    'んだ', 'のだ', 'んです', 'のです',
+    # Quotative
+    'と',
+]
+
+def split_japanese_by_time_and_grammar(chunks_df, nlp, gap_threshold=0.3):
     """
-    Split Japanese text by sentence-ending punctuation marks.
-    Handles both Japanese punctuation (。？！) and English punctuation (.?!)
-    which may appear in WhisperX output.
+    Split Japanese text by combining time gaps and grammatical patterns.
+    Since Japanese ASR often lacks punctuation, we use:
+    1. Time gaps between chunks (indicating pauses)
+    2. Sentence-ending particles and verb forms
+    3. Punctuation marks (! ? etc.)
     """
-    # Pattern to split at sentence-ending punctuation while keeping the punctuation
-    # Includes both Japanese (。？！) and English (.?!) punctuation
-    # Also handles cases where punctuation might be surrounded by quotes
-    pattern = r'([。？！.?!]+)[\s"]*'
+    chunks = chunks_df.copy()
+    chunks['text'] = chunks['text'].apply(lambda x: str(x).strip('"').strip('"').replace('"', '').strip())
     
-    parts = re.split(pattern, text)
+    # Calculate time gaps
+    chunks['gap'] = chunks['start'].shift(-1) - chunks['end']
+    
     sentences = []
-    current = ""
+    current_sentence = []
+    current_start = None
     
-    for i, part in enumerate(parts):
-        if not part:
-            continue
-        current += part
-        # If this part is punctuation (Japanese or English), it's the end of a sentence
-        if re.match(r'^[。？！.?!]+$', part):
-            if current.strip():
-                sentences.append(current.strip())
-            current = ""
+    for i, row in chunks.iterrows():
+        if current_start is None:
+            current_start = row['start']
+        
+        current_sentence.append(row['text'])
+        current_text = ''.join(current_sentence)
+        
+        should_split = False
+        
+        # Check for punctuation marks (highest priority)
+        if row['text'] in ['!', '?', '？', '！', '。', '．']:
+            should_split = True
+        # Check for significant time gap (strong indicator of sentence boundary)
+        elif pd.notna(row['gap']) and row['gap'] > gap_threshold:
+            should_split = True
+        # Check for sentence-ending patterns with small gap
+        elif len(current_text) >= 3 and pd.notna(row['gap']) and row['gap'] > 0.08:
+            # Check polite endings (very reliable)
+            for ender in ['ます', 'です', 'ました', 'でした', 'ません', 'ください', 'ましょう']:
+                if current_text.endswith(ender):
+                    should_split = True
+                    break
+            # Check sentence-final particles (reliable with gap)
+            if not should_split and row['gap'] > 0.15:
+                for ender in ['ね', 'よ', 'わ', 'ぞ', 'な', 'さ', 'の', 'か', 'よね', 'かな', 'かね']:
+                    if current_text.endswith(ender):
+                        should_split = True
+                        break
+        
+        if should_split and current_sentence:
+            sentences.append(''.join(current_sentence))
+            current_sentence = []
+            current_start = None
     
-    # Add remaining text if any
-    if current.strip():
-        sentences.append(current.strip())
+    # Add remaining text
+    if current_sentence:
+        sentences.append(''.join(current_sentence))
     
-    return sentences
+    # Post-process: merge very short sentences (< 2 chars) with next
+    merged_sentences = []
+    i = 0
+    while i < len(sentences):
+        sent = sentences[i]
+        # If current sentence is very short, merge with next
+        if len(sent.strip()) < 2 and i + 1 < len(sentences):
+            sentences[i + 1] = sent + sentences[i + 1]
+        else:
+            merged_sentences.append(sent)
+        i += 1
+    
+    rprint(f"[blue]📊 Japanese split: {len(merged_sentences)} sentences (gap threshold: {gap_threshold}s)[/blue]")
+    return merged_sentences
 
 def split_by_mark(nlp):
     whisper_language = load_key("whisper.language")
@@ -45,24 +101,17 @@ def split_by_mark(nlp):
     joiner = get_joiner(language)
     rprint(f"[blue]🔍 Using {language} language joiner: '{joiner}'[/blue]")
     chunks = pd.read_excel("output/log/cleaned_chunks.xlsx")
-    # Clean text: remove surrounding quotes and any embedded quotes
-    chunks.text = chunks.text.apply(lambda x: str(x).strip('"').strip('"').replace('"', '').strip())
     
-    # join with joiner
-    input_text = joiner.join(chunks.text.to_list())
-    
-    # For Japanese, use custom punctuation-based splitting
-    # because spacy may not properly detect sentence boundaries
+    # Special handling for Japanese - use time-based splitting due to lack of punctuation in ASR
     if language == 'ja':
-        rprint(f"[blue]🇯🇵 Using custom Japanese sentence splitting by punctuation[/blue]")
-        sentences_by_mark = split_japanese_by_punctuation(input_text)
-        
-        # If no sentences were split (no punctuation found), fall back to spacy
-        if len(sentences_by_mark) <= 1:
-            rprint(f"[yellow]⚠️ No sentence-ending punctuation found, falling back to spacy[/yellow]")
-            doc = nlp(input_text)
-            sentences_by_mark = [sent.text.strip() for sent in doc.sents]
+        sentences_by_mark = split_japanese_by_time_and_grammar(chunks, nlp)
     else:
+        # Clean text: remove surrounding quotes and any embedded quotes
+        chunks.text = chunks.text.apply(lambda x: str(x).strip('"').strip('"').replace('"', '').strip())
+        
+        # join with joiner
+        input_text = joiner.join(chunks.text.to_list())
+
         doc = nlp(input_text)
         assert doc.has_annotation("SENT_START")
 
@@ -84,13 +133,13 @@ def split_by_mark(nlp):
                 current_sentence.append(text)
             else:
                 if current_sentence:
-                    sentences_by_mark.append(' '.join(current_sentence))
+                    sentences_by_mark.append(joiner.join(current_sentence))
                     current_sentence = []
                 current_sentence.append(text)
         
         # add the last sentence
         if current_sentence:
-            sentences_by_mark.append(' '.join(current_sentence))
+            sentences_by_mark.append(joiner.join(current_sentence))
 
     rprint(f"[blue]📊 Split into {len(sentences_by_mark)} sentences[/blue]")
     

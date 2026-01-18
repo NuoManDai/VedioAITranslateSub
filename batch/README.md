@@ -2,52 +2,97 @@
 
 [English](./README.md) | [简体中文](./README.zh.md)
 
-Before utilizing the batch mode, ensure you have used the Streamlit mode and properly configured the parameters in `config.yaml`.
+Batch process multiple videos for subtitle translation and dubbing.
 
-## Usage Guide
+## Prerequisites
 
-### 1. Video File Preparation
+Before using batch mode, ensure:
+1. API keys are properly configured in `config.yaml`
+2. Backend service is running (`start_backend.bat`)
 
-- Place your video files in the `input` folder
-- YouTube links can be specified in the next step
+## Usage
 
-### 2. Task Configuration
+### 1. Prepare Video Files
 
-Edit the `tasks_setting.xlsx` file:
+- Place video files in `batch/input` folder
 
-| Field | Description | Acceptable Values |
-|-------|-------------|-------------------|
-| Video File | Video filename (without `input/` prefix) or YouTube URL | - |
-| Source Language | Source language | 'en', 'zh', ... or leave empty for default |
-| Target Language | Translation language | Use natural language description, or leave empty for default |
-| Dubbing | Enable dubbing | 0 or empty: no dubbing; 1: enable dubbing |
+### 2. Configure Tasks
+
+Edit `tasks_setting.xlsx`:
+
+| Field | Description | Values |
+|-------|-------------|--------|
+| Video File | Video filename (without `input/` prefix) | - |
+| Source Language | Source language | 'en', 'zh', ... or empty for default |
+| Target Language | Translation target | Natural language description, or empty for default |
+| Dubbing | Enable dubbing | 0 or empty: subtitles only; 1: subtitles + dubbing |
+| Status | Task status (auto-filled) | Done / Error: ... |
 
 Example:
 
-| Video File | Source Language | Target Language | Dubbing |
-|------------|-----------------|-----------------|---------|
-| https://www.youtube.com/xxx | | German | |
-| Kungfu Panda.mp4 | |  | 1 |
+| Video File | Source Language | Target Language | Dubbing | Status |
+|------------|-----------------|-----------------|---------|--------|
+| video1.mp4 | en | 简体中文 | 0 | |
+| video2.mp4 | ja | English | 1 | |
+| video3.mp4 | | | 1 | Done |
 
-### 3. Executing Batch Processing
+### 3. Start Backend Service
 
-1. Double-click to run `OneKeyBatch.bat`
-2. Output files will be saved in the `output` folder
-3. Task status can be monitored in the `Status` column of `tasks_setting.xlsx`
+In one terminal window:
+```bash
+# Windows
+.\start_backend.bat
 
-> Note: Keep `tasks_setting.xlsx` closed during execution to prevent interruptions due to file access conflicts.
+# PowerShell
+.\start_backend.ps1
+```
 
-## Important Considerations
+### 4. Run Batch Processing
 
-### Handling Interruptions
+In another terminal:
+```bash
+# From batch directory
+cd batch
+OneKeyBatch.bat
+```
 
-If the command line is closed unexpectedly, language settings in `config.yaml` may be altered. Check settings before retrying.
+Or from project root:
+```bash
+python -m batch.utils.batch_processor
+```
 
-### Error Management
+### 5. Check Results
 
-- Failed files will be moved to the `output/ERROR` folder
-- Error messages are recorded in the `Status` column of `tasks_setting.xlsx`
-- To retry:
-  1. Move the single video folder from `ERROR` to the root directory
-  2. Rename it to `output`
-  3. Use Streamlit mode to process again
+- Successful outputs saved to `batch/output/{video_name}/`
+- Failed outputs saved to `batch/output/ERROR/{video_name}/`
+- Task status recorded in `tasks_setting.xlsx` Status column
+
+> ⚠️ Note: Keep `tasks_setting.xlsx` closed while running, otherwise status cannot be saved.
+
+## Error Handling
+
+### Retry Failed Tasks
+
+If a task fails (Status shows `Error: ...`):
+1. Check and fix the issue (API quota, network, etc.)
+2. Re-run `OneKeyBatch.bat`
+3. Program will automatically restore files from ERROR folder and continue
+
+### Skip Completed Tasks
+
+Tasks with `Done` status are automatically skipped. To reprocess, clear the Status cell.
+
+## Directory Structure
+
+```
+batch/
+├── input/              # Place video files here
+├── output/             # Processed outputs
+│   ├── video1/         # Successful output
+│   └── ERROR/          # Failed output (for retry)
+│       └── video2/
+├── tasks_setting.xlsx  # Task configuration
+├── OneKeyBatch.bat     # One-click launcher
+└── utils/
+    └── batch_processor.py  # Core batch logic
+```

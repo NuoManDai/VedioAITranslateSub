@@ -144,13 +144,27 @@ async def delete_current_video():
 
 
 @router.get("/stream/{filename}")
-async def stream_video(filename: str):
+async def stream_video(filename: str, with_subtitle: bool = False):
     """
     获取视频流
+    
+    Args:
+        filename: 视频文件名
+        with_subtitle: 是否优先返回带字幕的版本
     """
     output_dir = get_output_dir()
     
-    # Try multiple possible locations
+    # If with_subtitle is True, try to return the subtitled version first
+    if with_subtitle:
+        subtitled_path = output_dir / "output_sub.mp4"
+        if subtitled_path.exists():
+            return FileResponse(
+                path=str(subtitled_path),
+                media_type='video/mp4',
+                filename="output_sub.mp4"
+            )
+    
+    # Try multiple possible locations for the original video
     possible_paths = [
         output_dir / filename,
         output_dir / "video" / filename,

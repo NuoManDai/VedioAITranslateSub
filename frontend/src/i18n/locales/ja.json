@@ -106,5 +106,21 @@
     "No NVIDIA GPU detected": "NVIDIA GPUが検出されません",
     "No NVIDIA GPU detected or NVIDIA drivers not properly installed": "NVIDIA GPUが検出されないか、NVIDIAドライバーが正しくインストールされていません",
     "LLM JSON Format Support": "LLM JSON形式サポート",
-    "Enable if your LLM supports JSON mode output": "LLMがJSON出力モードをサポートしている場合に有効化"
+    "Enable if your LLM supports JSON mode output": "LLMがJSON出力モードをサポートしている場合に有効化",
+    "Console": "コンソール",
+    "idle": "アイドル",
+    "All Levels": "すべてのレベル",
+    "All Sources": "すべてのソース",
+    "Subtitle": "字幕",
+    "Dubbing": "吹き替え",
+    "Auto Scroll": "自動スクロール",
+    "Clear": "クリア",
+    "No logs yet": "ログはまだありません",
+    "restartSubtitle": "字幕を再開",
+    "restartDubbing": "吹き替えを再開",
+    "confirmRestartSubtitle": "字幕処理を再開しますか？",
+    "confirmRestartSubtitleDesc": "字幕処理の中間ファイル（ログ、翻訳キャッシュ、字幕ファイルなど）がすべて削除されます。元の動画と音声は保持されます。",
+    "confirmRestartDubbing": "吹き替え処理を再開しますか？",
+    "confirmRestartDubbingDesc": "吹き替え処理の中間ファイル（音声セグメント、参照音声など）がすべて削除されます。元の動画と字幕は保持されます。",
+    "cleanupSuccess": "クリーンアップ完了、処理を再開できます"
 }

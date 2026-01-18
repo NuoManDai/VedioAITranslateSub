@@ -40,13 +40,12 @@ try:
                 os.environ["HTTPS_PROXY"] = http_proxy
                 os.environ["HF_HUB_HTTP_PROXY"] = http_proxy
             
-            # Configure HuggingFace mirror
-            hf_mirror = config.get('hf_mirror', 'https://hf-mirror.com')
-            if hf_mirror:
-                os.environ["HF_ENDPOINT"] = hf_mirror
-                # Disable xethub storage backend which causes download issues in China
-                os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
-                os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+            # Configure HuggingFace mirror (use default if empty)
+            hf_mirror = config.get('hf_mirror', '') or 'https://hf-mirror.com'
+            os.environ["HF_ENDPOINT"] = hf_mirror
+            # Disable xethub storage backend which causes download issues in China
+            os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
+            os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 except Exception:
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
     os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
@@ -58,7 +57,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 
-from api.routes import video, processing, config
+from api.routes import video, processing, config, logs, files
 
 # Configure logging
 logging.basicConfig(
@@ -177,6 +176,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 app.include_router(video.router, prefix="/api/video", tags=["Video"])
 app.include_router(processing.router, prefix="/api/processing", tags=["Processing"])
 app.include_router(config.router, prefix="/api/config", tags=["Config"])
+app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
+app.include_router(files.router, prefix="/api", tags=["Files"])
 
 
 @app.get("/", tags=["Health"])

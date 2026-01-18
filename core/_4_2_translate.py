@@ -58,6 +58,12 @@ def translate_all():
     with open(_4_1_TERMINOLOGY, 'r', encoding='utf-8') as file:
         theme_prompt = json.load(file).get('theme')
 
+    # Check if source is CJK language
+    whisper_language = load_key("whisper.language")
+    detected_language = load_key("whisper.detected_language") if whisper_language == 'auto' else whisper_language
+    cjk_languages = ['ja', 'zh', 'ko', 'japanese', 'chinese', 'korean']
+    is_cjk = detected_language.lower() in cjk_languages
+
     # 🔄 Use concurrent execution for translation
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
         task = progress.add_task("[cyan]Translating chunks...", total=len(chunks))
@@ -75,31 +81,82 @@ def translate_all():
     
     # 💾 Save results to lists and Excel file
     src_text, trans_text = [], []
-    for i, chunk in enumerate(chunks):
-        chunk_lines = chunk.split('\n')
-        src_text.extend(chunk_lines)
-        
-        # Calculate similarity between current chunk and translation results
-        chunk_text = ''.join(chunk_lines).lower()
-        matching_results = [(r, similar(''.join(r[1].split('\n')).lower(), chunk_text)) 
-                          for r in results]
-        best_match = max(matching_results, key=lambda x: x[1])
-        
-        # Check similarity and handle exceptions
-        if best_match[1] < 0.9:
-            console.print(f"[yellow]Warning: No matching translation found for chunk {i}[/yellow]")
-            raise ValueError(f"Translation matching failed (chunk {i})")
-        elif best_match[1] < 1.0:
-            console.print(f"[yellow]Warning: Similar match found (chunk {i}, similarity: {best_match[1]:.3f})[/yellow]")
+    
+    if is_cjk:
+        # For CJK languages, use LLM's sentence segmentation
+        console.print("[blue]📝 CJK mode: Using LLM sentence breaks for subtitle segmentation[/blue]")
+        for i, (idx, english_result, translation) in enumerate(results):
+            # Translation already contains \n separated lines from LLM
+            trans_lines = [line.strip() for line in translation.split('\n') if line.strip()]
+            trans_text.extend(trans_lines)
             
-        trans_text.extend(best_match[0][2].split('\n'))
+            # Source is joined as single block per chunk, distribute it across translation lines
+            # For display purposes, we'll use the source text repeated or empty
+            src_block = english_result.replace('\n', '')
+            # Distribute source characters roughly across translation lines
+            if trans_lines:
+                chars_per_line = max(1, len(src_block) // len(trans_lines))
+                for j, trans_line in enumerate(trans_lines):
+                    start_idx = j * chars_per_line
+                    end_idx = start_idx + chars_per_line if j < len(trans_lines) - 1 else len(src_block)
+                    src_text.append(src_block[start_idx:end_idx])
+    else:
+        # Original logic for non-CJK languages
+        for i, chunk in enumerate(chunks):
+            chunk_lines = chunk.split('\n')
+            src_text.extend(chunk_lines)
+            
+            # Calculate similarity between current chunk and translation results
+            chunk_text = ''.join(chunk_lines).lower()
+            matching_results = [(r, similar(''.join(r[1].split('\n')).lower(), chunk_text)) 
+                              for r in results]
+            best_match = max(matching_results, key=lambda x: x[1])
+            
+            # Check similarity and handle exceptions
+            if best_match[1] < 0.9:
+                console.print(f"[yellow]Warning: No matching translation found for chunk {i}[/yellow]")
+                raise ValueError(f"Translation matching failed (chunk {i})")
+            elif best_match[1] < 1.0:
+                console.print(f"[yellow]Warning: Similar match found (chunk {i}, similarity: {best_match[1]:.3f})[/yellow]")
+                
+            trans_text.extend(best_match[0][2].split('\n'))
+    
+    # Ensure src_text and trans_text have same length
+    if len(src_text) != len(trans_text):
+        console.print(f"[yellow]⚠️ Length mismatch: src={len(src_text)}, trans={len(trans_text)}. Adjusting...[/yellow]")
+        min_len = min(len(src_text), len(trans_text))
+        if len(src_text) > len(trans_text):
+            # Pad translation with empty strings
+            trans_text.extend([''] * (len(src_text) - len(trans_text)))
+        else:
+            # Pad source with empty strings
+            src_text.extend([''] * (len(trans_text) - len(src_text)))
     
     # Trim long translation text
     df_text = pd.read_excel(_2_CLEANED_CHUNKS)
     df_text['text'] = df_text['text'].str.strip('"').str.strip()
     df_translate = pd.DataFrame({'Source': src_text, 'Translation': trans_text})
     subtitle_output_configs = [('trans_subs_for_audio.srt', ['Translation'])]
-    df_time = align_timestamp(df_text, df_translate, subtitle_output_configs, output_dir=None, for_display=False)
+    
+    if is_cjk:
+        # For CJK, we need to re-align timestamps based on translation line count
+        # Since source characters don't map 1:1, we distribute time evenly
+        total_duration = df_text['end'].max() - df_text['start'].min()
+        start_time = df_text['start'].min()
+        num_lines = len(trans_text)
+        duration_per_line = total_duration / num_lines if num_lines > 0 else 0
+        
+        df_time = pd.DataFrame({
+            'start': [start_time + i * duration_per_line for i in range(num_lines)],
+            'end': [start_time + (i + 1) * duration_per_line for i in range(num_lines)],
+            'duration': [duration_per_line] * num_lines,
+            'Source': src_text[:num_lines],
+            'Translation': trans_text[:num_lines]
+        })
+        console.print(f"[blue]📝 CJK mode: Distributed {total_duration:.2f}s across {num_lines} subtitle lines[/blue]")
+    else:
+        df_time = align_timestamp(df_text, df_translate, subtitle_output_configs, output_dir=None, for_display=False)
+    
     console.print(df_time)
     # apply check_len_then_trim to df_time['Translation'], only when duration > MIN_TRIM_DURATION.
     df_time['Translation'] = df_time.apply(lambda x: check_len_then_trim(x['Translation'], x['duration']) if x['duration'] > load_key("min_trim_duration") else x['Translation'], axis=1)

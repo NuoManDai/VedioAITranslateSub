@@ -18,7 +18,7 @@ interface UseProcessingStatusResult {
   refetch: () => Promise<void>;
 }
 
-const DEFAULT_INTERVAL = 2000; // 2 seconds
+const DEFAULT_INTERVAL = 3000; // 3 seconds
 
 export function useProcessingStatus(
   options: UseProcessingStatusOptions = {}

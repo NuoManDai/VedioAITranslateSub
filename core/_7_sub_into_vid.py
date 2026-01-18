@@ -77,7 +77,7 @@ def merge_subtitles_to_video():
             f"ShadowColour={SRC_SHADOW_COLOR},BorderStyle=1',"
             f"subtitles={TRANS_SRT}:force_style='FontSize={TRANS_FONT_SIZE},FontName={TRANS_FONT_NAME},"
             f"PrimaryColour={TRANS_FONT_COLOR},OutlineColour={TRANS_OUTLINE_COLOR},OutlineWidth={TRANS_OUTLINE_WIDTH},"
-            f"BackColour={TRANS_BACK_COLOR},Alignment=2,MarginV=27,BorderStyle=4'"
+            f"ShadowColour={SRC_SHADOW_COLOR},BorderStyle=1,Alignment=2,MarginV=27'"
         ).encode('utf-8'),
     ]
 

@@ -123,6 +123,17 @@ body {
 }
 
 /* Modern Steps */
+/* Fix icon size to prevent deformation when description text is present */
+.modern-steps .ant-steps-item-icon {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  flex-shrink: 0 !important;
+  line-height: 24px !important;
+  border-radius: 50% !important;
+}
+
 .modern-steps .ant-steps-item-process .ant-steps-item-icon {
   background: var(--primary-gradient) !important;
   border: none !important;
@@ -168,6 +179,31 @@ body {
   background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
+/* Steps item container alignment */
+.modern-steps .ant-steps-item-container {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.modern-steps .ant-steps-item-content {
+  min-height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+}
+
+/* Steps item title and description */
+.modern-steps .ant-steps-item-title {
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  padding-right: 0 !important;
+}
+
+.modern-steps .ant-steps-item-description {
+  font-size: 11px !important;
+  margin-top: 2px !important;
+}
+
 /* Upload area styles */
 .upload-area {
   border: 2px dashed rgba(102, 126, 234, 0.3);
@@ -192,31 +228,86 @@ body {
 
 /* Modern Buttons */
 .btn-primary {
-  background: var(--primary-gradient) !important;
+  position: relative !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
   border: none !important;
-  border-radius: 12px !important;
-  height: 44px !important;
-  padding: 0 28px !important;
-  font-weight: 500 !important;
-  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.4) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border-radius: 10px !important;
+  height: 40px !important;
+  padding: 0 24px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35) !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+}
+
+.btn-primary::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent) !important;
+  transition: left 0.5s ease !important;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 8px 30px rgba(102, 126, 234, 0.5) !important;
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.45) !important;
+}
+
+.btn-primary:hover::before {
+  left: 100% !important;
+}
+
+.btn-primary:active {
+  transform: translateY(0) scale(0.98) !important;
 }
 
 .btn-danger {
-  background: var(--secondary-gradient) !important;
+  position: relative !important;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%) !important;
   border: none !important;
-  border-radius: 12px !important;
-  box-shadow: 0 4px 20px rgba(245, 87, 108, 0.4) !important;
+  border-radius: 10px !important;
+  height: 40px !important;
+  padding: 0 24px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(238, 90, 90, 0.35) !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  cursor: pointer !important;
 }
 
 .btn-danger:hover {
-  transform: translateY(-2px) !important;
-  box-shadow: 0 8px 30px rgba(245, 87, 108, 0.5) !important;
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 8px 25px rgba(238, 90, 90, 0.45) !important;
+  background: linear-gradient(135deg, #ff5252 0%, #e04040 100%) !important;
+}
+
+.btn-danger:active {
+  transform: translateY(0) scale(0.98) !important;
+}
+
+.btn-disabled {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%) !important;
+  border: none !important;
+  border-radius: 10px !important;
+  height: 40px !important;
+  padding: 0 24px !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  color: #94a3b8 !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+.btn-disabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 /* Progress bar */
@@ -477,4 +568,111 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(102, 126, 234, 0.5);
+}
+/* Processing Tabs Styles */
+.processing-tabs {
+  background: transparent;
+}
+
+.processing-tabs .ant-tabs-nav {
+  margin-bottom: 0 !important;
+}
+
+.processing-tabs .ant-tabs-nav::before {
+  border-bottom: 1px solid rgba(102, 126, 234, 0.1) !important;
+}
+
+.processing-tabs .ant-tabs-tab {
+  padding: 12px 24px !important;
+  margin: 0 !important;
+  border-radius: 12px 12px 0 0 !important;
+  border: 1px solid transparent !important;
+  background: rgba(102, 126, 234, 0.05) !important;
+  transition: all 0.3s ease !important;
+}
+
+.processing-tabs .ant-tabs-tab:hover {
+  background: rgba(102, 126, 234, 0.1) !important;
+}
+
+.processing-tabs .ant-tabs-tab-active {
+  background: white !important;
+  border-color: rgba(102, 126, 234, 0.2) rgba(102, 126, 234, 0.2) transparent !important;
+  box-shadow: 0 -4px 20px rgba(102, 126, 234, 0.1) !important;
+}
+
+.processing-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #667eea !important;
+  font-weight: 600 !important;
+}
+
+.processing-tabs .ant-tabs-tab-disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+
+.processing-tabs .ant-tabs-content-holder {
+  background: white;
+  border: 1px solid rgba(102, 126, 234, 0.1);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  padding: 0;
+}
+
+.processing-tabs .ant-tabs-ink-bar {
+  display: none !important;
+}
+
+/* Button styles for processing panel */
+.btn-secondary {
+  position: relative !important;
+  background: white !important;
+  border: 1.5px solid rgba(102, 126, 234, 0.4) !important;
+  border-radius: 10px !important;
+  height: 40px !important;
+  padding: 0 20px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  color: #667eea !important;
+  transition: all 0.25s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  text-decoration: none !important;
+  cursor: pointer !important;
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%) !important;
+  border-color: #667eea !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15) !important;
+}
+
+.btn-secondary:active {
+  transform: translateY(0) scale(0.98) !important;
+}
+
+.btn-warning {
+  position: relative !important;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%) !important;
+  border: none !important;
+  border-radius: 10px !important;
+  height: 40px !important;
+  padding: 0 20px !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.35) !important;
+  transition: all 0.25s ease !important;
+  cursor: pointer !important;
+}
+
+.btn-warning:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.4) !important;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+}
+
+.btn-warning:active {
+  transform: translateY(0) scale(0.98) !important;
 }
