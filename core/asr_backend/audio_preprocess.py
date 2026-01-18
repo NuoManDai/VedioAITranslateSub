@@ -17,18 +17,38 @@ def normalize_audio_volume(audio_path, output_path, target_db = -20.0, format = 
     rprint(f"[green]✅ Audio normalized from {audio.dBFS:.1f}dB to {target_db:.1f}dB[/green]")
     return output_path
 
+def get_video_audio_channels(video_file: str) -> int:
+    """Get the number of audio channels from video file using ffprobe."""
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-select_streams', 'a:0',
+            '-show_entries', 'stream=channels',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            video_file
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        channels = int(result.stdout.strip())
+        return channels
+    except Exception as e:
+        rprint(f"[yellow]⚠️ Failed to detect audio channels: {e}, defaulting to 2[/yellow]")
+        return 2  # 默认双声道
+
 def convert_video_to_audio(video_file: str):
     os.makedirs(_AUDIO_DIR, exist_ok=True)
     if not os.path.exists(_RAW_AUDIO_FILE):
-        rprint(f"[blue]🎬➡️🎵 Converting to high quality audio with FFmpeg ......[/blue]")
+        # 检测原始视频的声道数
+        channels = get_video_audio_channels(video_file)
+        bitrate = 32 * channels  # 每声道 32kbps
+        rprint(f"[blue]🎬➡️🎵 Converting to audio (channels: {channels}, bitrate: {bitrate}k) ......[/blue]")
         subprocess.run([
             'ffmpeg', '-y', '-i', video_file, '-vn',
-            '-c:a', 'libmp3lame', '-b:a', '32k',
+            '-c:a', 'libmp3lame', '-b:a', f'{bitrate}k',
             '-ar', '16000',
-            '-ac', '1', 
+            '-ac', str(channels), 
             '-metadata', 'encoding=UTF-8', _RAW_AUDIO_FILE
         ], check=True, stderr=subprocess.PIPE)
-        rprint(f"[green]🎬➡️🎵 Converted <{video_file}> to <{_RAW_AUDIO_FILE}> with FFmpeg\n[/green]")
+        rprint(f"[green]🎬➡️🎵 Converted <{video_file}> to <{_RAW_AUDIO_FILE}> ({channels} channels)\n[/green]")
 
 def get_audio_duration(audio_file: str) -> float:
     """Get the duration of an audio file using ffmpeg."""

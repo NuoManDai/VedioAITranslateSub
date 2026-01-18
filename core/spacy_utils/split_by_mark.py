@@ -42,6 +42,13 @@ def split_japanese_by_time_and_grammar(chunks_df, nlp, gap_threshold=0.3):
     current_sentence = []
     current_start = None
     
+    # 高可靠性敬语句尾 - 这些几乎总是表示句子结束
+    POLITE_ENDERS = ['ます', 'です', 'ました', 'でした', 'ません', 'ください', 'ましょう']
+    # 普通体句尾 - 也比较可靠
+    PLAIN_ENDERS = ['だ', 'た', 'る', 'い', 'ない', 'ある', 'いる', 'える', 'める', 'のだ', 'んだ']
+    # 句尾助词 - 需要配合时间间隔使用
+    PARTICLE_ENDERS = ['ね', 'よ', 'わ', 'ぞ', 'な', 'さ', 'の', 'か', 'よね', 'かな', 'かね']
+    
     for i, row in chunks.iterrows():
         if current_start is None:
             current_start = row['start']
@@ -57,19 +64,24 @@ def split_japanese_by_time_and_grammar(chunks_df, nlp, gap_threshold=0.3):
         # Check for significant time gap (strong indicator of sentence boundary)
         elif pd.notna(row['gap']) and row['gap'] > gap_threshold:
             should_split = True
-        # Check for sentence-ending patterns with small gap
-        elif len(current_text) >= 3 and pd.notna(row['gap']) and row['gap'] > 0.08:
-            # Check polite endings (very reliable)
-            for ender in ['ます', 'です', 'ました', 'でした', 'ません', 'ください', 'ましょう']:
+        # 高可靠性敬语句尾 - 不需要 gap 也可以分割（最小长度 5 字符避免误判）
+        elif len(current_text) >= 5:
+            for ender in POLITE_ENDERS:
                 if current_text.endswith(ender):
                     should_split = True
                     break
-            # Check sentence-final particles (reliable with gap)
-            if not should_split and row['gap'] > 0.15:
-                for ender in ['ね', 'よ', 'わ', 'ぞ', 'な', 'さ', 'の', 'か', 'よね', 'かな', 'かね']:
-                    if current_text.endswith(ender):
-                        should_split = True
-                        break
+        # 普通体句尾配合小间隔
+        if not should_split and len(current_text) >= 8 and pd.notna(row['gap']) and row['gap'] > 0.05:
+            for ender in PLAIN_ENDERS:
+                if current_text.endswith(ender):
+                    should_split = True
+                    break
+        # 句尾助词需要配合时间间隔（避免误判）
+        if not should_split and len(current_text) >= 3 and pd.notna(row['gap']) and row['gap'] > 0.08:
+            for ender in PARTICLE_ENDERS:
+                if current_text.endswith(ender):
+                    should_split = True
+                    break
         
         if should_split and current_sentence:
             sentences.append(''.join(current_sentence))
@@ -80,17 +92,15 @@ def split_japanese_by_time_and_grammar(chunks_df, nlp, gap_threshold=0.3):
     if current_sentence:
         sentences.append(''.join(current_sentence))
     
-    # Post-process: merge very short sentences (< 2 chars) with next
+    # Post-process: merge short sentences with previous (not next)
     merged_sentences = []
-    i = 0
-    while i < len(sentences):
-        sent = sentences[i]
-        # If current sentence is very short, merge with next
-        if len(sent.strip()) < 2 and i + 1 < len(sentences):
-            sentences[i + 1] = sent + sentences[i + 1]
+    for sent in sentences:
+        sent = sent.strip()
+        # 如果当前句子太短(<=4字符)且有前一句，合并到前一句
+        if len(sent) <= 4 and merged_sentences:
+            merged_sentences[-1] = merged_sentences[-1] + sent
         else:
             merged_sentences.append(sent)
-        i += 1
     
     rprint(f"[blue]📊 Japanese split: {len(merged_sentences)} sentences (gap threshold: {gap_threshold}s)[/blue]")
     return merged_sentences

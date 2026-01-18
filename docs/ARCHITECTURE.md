@@ -48,9 +48,11 @@ flowchart TB
 
     subgraph Core["🔧 Core 处理层"]
         subgraph ASR["ASR 模块"]
+            Demucs["Demucs 人声分离"]
             WhisperLocal["WhisperX Local<br/>(faster-whisper)"]
             WhisperCloud["WhisperX Cloud<br/>(302.ai)"]
-            Demucs["Demucs 人声分离"]
+            Demucs --> WhisperLocal
+            Demucs --> WhisperCloud
         end
         
         subgraph NLP["NLP 模块"]
@@ -149,20 +151,30 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    A[输入: video.mp4] --> B[FFmpeg 提取音频]
-    B --> C{启用人声分离?}
-    C -->|是| D[Demucs 分离]
-    D --> E[vocal.mp3 人声]
-    D --> F[background.mp3 背景]
-    C -->|否| G[raw.mp3 原始音频]
-    E --> H{ASR 模式}
-    G --> H
-    H -->|本地| I[faster-whisper]
-    H -->|云端| J[302.ai Whisper API]
-    I --> K[WhisperX 时间戳对齐]
-    J --> K
-    K --> L[输出: cleaned_chunks.xlsx]
+    A[输入: video.mp4] --> B[ffprobe 检测声道数]
+    B --> C[FFmpeg 提取音频]
+    C --> D[raw.mp3<br/>保持原始声道 16kHz]
+    D --> E{启用人声分离?}
+    E -->|是| F[Demucs 分离]
+    F --> G[vocal.mp3 人声<br/>双声道]
+    F --> H[background.mp3 背景<br/>双声道]
+    E -->|否| I[使用 raw.mp3 作为 vocal]
+    
+    D --> J{ASR 模式}
+    J -->|本地| K[faster-whisper 转录<br/>使用 raw.mp3]
+    J -->|云端| L[302.ai Whisper API<br/>使用 raw.mp3]
+    
+    K --> M[WhisperX 时间戳对齐]
+    L --> M
+    G --> M
+    I --> M
+    M -->|对齐使用 vocal| N[输出: cleaned_chunks.xlsx]
 ```
+
+> **说明**: 
+> - `raw.mp3` 保持与原始视频相同的声道数（动态检测），比特率 = 32k × 声道数
+> - 转录阶段使用 `raw.mp3`，对齐阶段使用 `vocal.mp3`（如果启用了 Demucs）
+> - Demucs 输出始终为双声道（模型特性）
 
 ### Step 4.2: 翻译双步骤流程
 

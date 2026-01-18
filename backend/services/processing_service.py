@@ -39,7 +39,7 @@ class TqdmCapture(io.StringIO):
         
         # Patterns for important log lines (emoji or key prefixes)
         self._important_patterns = [
-            r'^[✅⚠️❌🎙️🎤🚀🎮▶️📥🔍⏱️💾📝🔊💬🌐📊📖💾⏱️🔄⬇️✂️🎬📦⚙️✓🔗📏]',  # Emoji prefixes
+            r'^[✅⚠️❌🎙️🎤🚀🎮▶️📥🔍⏱️💾📝🔊💬🌐📊📖💾⏱️🔄⬇️✂️🎬📦⚙️✓🔗📏🎵🎬➡️💡🔧📄🗣️🎯🔢📋]',  # Emoji prefixes
             r'^(INFO|WARNING|ERROR|DEBUG):',  # Log levels
             r'\d{4}-\d{2}-\d{2}.*-\s*(INFO|WARNING|ERROR)',  # Timestamped logs
             r'huggingface.*-\s*(WARNING|ERROR)',  # HuggingFace library logs
@@ -49,11 +49,37 @@ class TqdmCapture(io.StringIO):
             r'(Origin:|Direct:|Free:)\s*\S',  # Translation results
             r'use cache response',  # Cache hit
             r'(Summarizing|translat|Processing|Loading|Starting)',  # Process stages
-            r'(saved to|Successfully|Completed|finished)',  # Completion messages
+            r'(saved to|Successfully|Completed|finished|Done)',  # Completion messages
             r'(Source Line|Target Line|SRC_LANG|TARGET_LANG)',  # Subtitle split table content
             r'(Original|Split)\s*\|',  # Split result table (using | after cleaning)
             r'(Line \d+ needs to be split|Split attempt|Aligned parts)',  # Split progress
             r'(Start splitting|splitting subtitles)',  # Split start
+            # ASR related
+            r'(Transcrib|whisper|ASR|alignment|align)',  # ASR process
+            r'(Demucs|separation|vocal|background)',  # Audio separation
+            r'(audio|Audio|声道|channels)',  # Audio processing
+            r'(segment|Segment|片段)',  # Segmentation
+            # NLP related
+            r'(spacy|SpaCy|NLP|分句|分词|sentence)',  # NLP processing
+            r'(split_by_nlp|split_by_meaning)',  # Split stages
+            # Subtitle related
+            r'(subtitle|Subtitle|字幕|SRT|srt)',  # Subtitle processing
+            r'(gen_sub|merge_sub|sub_into_vid)',  # Subtitle stages
+            # TTS/Dubbing related
+            r'(TTS|tts|配音|dubbing|dub)',  # TTS processing
+            r'(audio_task|dub_chunks|refer_audio|gen_audio|merge_audio)',  # Dubbing stages
+            # FFmpeg related
+            r'(FFmpeg|ffmpeg|encoding|muxing)',  # Video processing
+            r'(Converting|Converted|提取)',  # Conversion
+            # Progress indicators
+            r'(\d+/\d+|\d+%|进度)',  # Progress
+            r'(Step|step|阶段|Stage|stage)',  # Stage indicators
+            # Model loading
+            r'(model|Model|模型)',  # Model related
+            r'(downloading|download|加载|loaded)',  # Loading
+            # Timing
+            r'(time|Time|耗时|took|elapsed)',  # Timing info
+            r'(\d+\.\d+s|\d+ms|\d+ seconds)',  # Time values
         ]
         self._important_regex = re.compile('|'.join(self._important_patterns), re.IGNORECASE)
         
