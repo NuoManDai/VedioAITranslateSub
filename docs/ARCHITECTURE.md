@@ -168,13 +168,226 @@ flowchart TD
     L --> M
     G --> M
     I --> M
-    M -->|对齐使用 vocal| N[输出: cleaned_chunks.xlsx]
+    M -->|对齐使用 vocal| N{启用说话人分离?}
+    
+    N -->|是| O[pyannote.audio 分离]
+    N -->|否| P[speaker = NaN]
+    
+    O --> Q[whisperx.assign_word_speakers<br/>分配说话人到每个词]
+    Q --> R[输出: cleaned_chunks.xlsx<br/>包含 speaker 列]
+    P --> R
 ```
 
 > **说明**: 
 > - `raw.mp3` 保持与原始视频相同的声道数（动态检测），比特率 = 32k × 声道数
 > - 转录阶段使用 `raw.mp3`，对齐阶段使用 `vocal.mp3`（如果启用了 Demucs）
 > - Demucs 输出始终为双声道（模型特性）
+
+### Step 2 补充：说话人分离（Speaker Diarization）
+
+> **📌 说话人分离的作用**
+>
+> 当视频中有多个说话人时，说话人分离可以识别出"谁在什么时候说话"，
+> 为后续的翻译和配音提供更精确的上下文信息。
+
+#### 完整处理流程
+
+```mermaid
+flowchart TD
+    A[raw.mp3<br/>原始音频 16kHz] --> B{speaker_diarization<br/>配置开启?}
+    
+    B -->|否| Z1[跳过说话人分离<br/>speaker = NaN]
+    B -->|是| C{hf_token<br/>有效?}
+    
+    C -->|否| Z2[警告: 无有效 Token<br/>跳过说话人分离]
+    C -->|是| D[加载 pyannote Pipeline]
+    
+    subgraph LoadModel["模型加载阶段"]
+        D --> D1[检查 HF_ENDPOINT<br/>设置镜像地址]
+        D1 --> D2[Pipeline.from_pretrained<br/>pyannote/speaker-diarization-3.1]
+        D2 --> D3[模型移动到 GPU/CPU]
+    end
+    
+    D3 --> E[音频预处理]
+    
+    subgraph AudioPrep["音频准备"]
+        E --> E1[numpy → torch.Tensor]
+        E1 --> E2[添加 batch 维度<br/>unsqueeze 0]
+        E2 --> E3[构建音频字典<br/>waveform + sample_rate]
+    end
+    
+    E3 --> F[执行说话人分离]
+    
+    subgraph Diarize["pyannote Pipeline 内部流程"]
+        F --> F1["1️⃣ VAD 语音活动检测<br/>pyannote/segmentation-3.0"]
+        F1 --> F2["2️⃣ 说话人嵌入提取<br/>speechbrain/spkrec-ecapa-voxceleb"]
+        F2 --> F3["3️⃣ 聚类分析<br/>AgglomerativeClustering"]
+        F3 --> F4["4️⃣ 重叠语音检测<br/>Overlapped Speech Detection"]
+        F4 --> F5["5️⃣ 边界优化<br/>Segmentation Refinement"]
+    end
+    
+    F5 --> G[Diarization 结果<br/>Annotation 对象]
+    
+    subgraph Convert["结果转换"]
+        G --> G1[itertracks yield_label=True]
+        G1 --> G2[转换为 DataFrame]
+        G2 --> G3[提取 start/end/speaker]
+    end
+    
+    G3 --> H[whisperx.assign_word_speakers]
+    
+    subgraph Assign["说话人分配到词"]
+        H --> H1[遍历 WhisperX 结果]
+        H1 --> H2[每个 segment/word<br/>计算时间范围]
+        H2 --> H3[与 Diarization 时间段<br/>计算重叠率]
+        H3 --> H4[分配最大重叠的 speaker]
+    end
+    
+    H4 --> I[输出: 带 speaker 标签的结果]
+    
+    subgraph Cleanup["资源清理"]
+        I --> I1[删除 diarize_model]
+        I1 --> I2[torch.cuda.empty_cache]
+    end
+    
+    I2 --> J[cleaned_chunks.xlsx<br/>包含 speaker 列]
+    Z1 --> J
+    Z2 --> J
+```
+
+#### 说话人识别与声纹库（Qdrant）
+
+> **📌 说明**
+> - 说话人分离只给出匿名标签（如 `SPEAKER_00`）。
+> - 说话人识别会将匿名标签映射到角色名。
+> - 若 `speaker_samples/` 为空，可自动从分离结果中提取最长片段生成样本。
+
+**流程要点：**
+1. 使用 `pyannote/wespeaker-voxceleb-resnet34-LM` 提取声纹 embedding。
+2. 参考样本写入 Qdrant（如果启用 `speaker_vector_db`）。
+3. 识别时优先从 Qdrant 检索最相似声纹，再回写到 `segment/word.speaker`。
+
+**Qdrant 存储结构：**
+- **Collection**: `speaker_embeddings`（可配置）
+- **Point ID**: UUID（由角色名派生）
+- **Vector**: 声纹 embedding（flatten 后的浮点数组）
+- **Payload**: `{ "speaker": "角色名" }`
+
+#### pyannote-audio 4.0 Pipeline 详解
+
+```mermaid
+flowchart LR
+    subgraph Input["输入"]
+        A["音频文件/Tensor<br/>{'waveform': tensor, 'sample_rate': 16000}"]
+    end
+    
+    subgraph Stage1["阶段 1: 语音检测"]
+        B1["Segmentation Model<br/>pyannote/segmentation-3.0"]
+        B2["输出: 语音/非语音时间段<br/>+ 重叠检测"]
+    end
+    
+    subgraph Stage2["阶段 2: 嵌入提取"]
+        C1["Embedding Model<br/>speechbrain/spkrec-ecapa-voxceleb"]
+        C2["每个语音段 → 512维向量"]
+    end
+    
+    subgraph Stage3["阶段 3: 聚类"]
+        D1["层次聚类<br/>AgglomerativeClustering"]
+        D2["相似度阈值判断<br/>合并同一说话人"]
+    end
+    
+    subgraph Stage4["阶段 4: 后处理"]
+        E1["边界优化"]
+        E2["重叠区域处理"]
+        E3["最小时长过滤"]
+    end
+    
+    subgraph Output["输出"]
+        F["Annotation 对象<br/>[(start, end, speaker_id), ...]"]
+    end
+    
+    A --> B1 --> B2 --> C1 --> C2 --> D1 --> D2 --> E1 --> E2 --> E3 --> F
+```
+
+#### 说话人分离依赖的模型
+
+| 模型名称 | HuggingFace 地址 | 用途 | 是否 Gated | 模型大小 |
+|---------|-----------------|------|-----------|---------|
+| speaker-diarization-3.1 | `pyannote/speaker-diarization-3.1` | 主 Pipeline 配置 | ✅ 需同意条款 | ~1KB (配置文件) |
+| segmentation-3.0 | `pyannote/segmentation-3.0` | VAD + 重叠检测 | ✅ 需同意条款 | ~5MB |
+| spkrec-ecapa-voxceleb | `speechbrain/spkrec-ecapa-voxceleb` | 说话人嵌入 (ECAPA-TDNN) | ❌ | ~80MB |
+
+> **📌 注意**: pyannote-audio 4.0 默认使用 `speechbrain/spkrec-ecapa-voxceleb` 作为嵌入模型，
+> 替代了之前版本的 `wespeaker-voxceleb-resnet34-LM`。
+
+#### 代码实现细节
+
+```python
+# 1. 加载 Pipeline (whisperX_local.py)
+from pyannote.audio import Pipeline
+diarize_model = Pipeline.from_pretrained(
+    "pyannote/speaker-diarization-3.1",
+    token=hf_token  # HuggingFace Token
+)
+diarize_model = diarize_model.to(torch.device(device))  # GPU 加速
+
+# 2. 准备音频输入
+waveform = torch.from_numpy(raw_audio_segment).unsqueeze(0)
+audio_dict = {"waveform": waveform, "sample_rate": 16000}
+
+# 3. 执行说话人分离
+diarize_result = diarize_model(audio_dict)
+
+# 4. 转换结果为 DataFrame
+diarize_df = pd.DataFrame(
+    diarization.itertracks(yield_label=True), 
+    columns=['segment', 'label', 'speaker']
+)
+diarize_df['start'] = diarize_df['segment'].apply(lambda x: x.start)
+diarize_df['end'] = diarize_df['segment'].apply(lambda x: x.end)
+
+# 5. 分配说话人到每个词
+result = whisperx.assign_word_speakers(diarize_df, result)
+```
+
+#### 配置参数
+
+| 参数 | 配置键 | 默认值 | 说明 |
+|-----|-------|-------|------|
+| 启用说话人分离 | `speaker_diarization` | `false` | 是否启用 pyannote 说话人分离 |
+| HuggingFace Token | `hf_token` | 空 | 访问 gated 模型需要的 token |
+| HuggingFace 镜像 | `hf_mirror` | 空 | 国内用户可设置为 `https://hf-mirror.com` |
+
+#### 首次使用配置步骤
+
+1. 访问 https://huggingface.co/settings/tokens 创建 Token（选择 "Read" 权限）
+2. 访问以下页面并点击 "Agree" 同意条款：
+   - https://huggingface.co/pyannote/speaker-diarization-3.1
+   - https://huggingface.co/pyannote/segmentation-3.0
+3. 在 `config.yaml` 中配置：
+   ```yaml
+   hf_token: 'hf_your_token_here'
+   speaker_diarization: true
+   hf_mirror: 'https://hf-mirror.com'  # 国内用户可选
+   ```
+
+#### 模型缓存位置
+
+- Windows: `C:\Users\<用户名>\.cache\huggingface\hub\`
+- Linux/Mac: `~/.cache/huggingface/hub/`
+
+#### 依赖版本
+
+| 包名 | 版本 | 说明 |
+|-----|------|------|
+| pyannote-audio | 4.0.3 | 主库 |
+| pyannote-core | 6.0.1 | 核心数据结构 |
+| pyannote-pipeline | 4.0.0 | Pipeline 框架 |
+| speechbrain | - | 说话人嵌入模型 |
+| whisperx | - | 时间戳分配 |
+
+> **注意**：首次运行需要联网下载模型（约 85MB），后续运行直接从本地缓存加载。
+> GPU 加速显著提升处理速度，建议使用 CUDA 设备。
 
 ### Step 3.1: 文本粗切分（NLP 预处理）
 
@@ -189,22 +402,42 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A[输入: cleaned_chunks.xlsx<br/>字符级时间戳数据] --> B{启用时间间隔切分?<br/>time_gap_threshold > 0}
+    A[输入: cleaned_chunks.xlsx<br/>字符级时间戳数据] --> B[拼接全部文本]
     
-    B -->|是| B1[按时间间隔预切分<br/>单词持续时间 > 阈值秒]
-    B -->|否| B2[跳过时间切分]
+    B --> C[spaCy 标点分句<br/>split_by_mark]
     
-    B1 --> C[split_by_mark<br/>按标点粗切分]
-    B2 --> C
+    C --> D{启用时间间隔切分?<br/>time_gap_threshold > 0}
     
-    C --> D[split_by_comma<br/>按逗号切分]
-    D --> E[split_by_connector<br/>按连接词切分<br/>spaCy 依存分析]
-    E --> F{文本长度 >60 tokens?}
-    F -->|是| G[split_long_by_root<br/>动态规划按词根切分]
-    F -->|否| H[保持原文本]
-    G --> I[split_by_nlp.txt]
+    D -->|是| E[对每个 spaCy 句子<br/>检查内部时间间隔]
+    E --> F[单词持续时间 > 阈值<br/>或 单词间隔 > 阈值]
+    F --> G[在超时点切分]
+    
+    D -->|否| H[保持 spaCy 分句结果]
+    
+    G --> I[split_by_mark.txt]
     H --> I
+    
+    I --> J[split_by_comma<br/>按逗号切分]
+    J --> K[split_by_connector<br/>按连接词切分<br/>spaCy 依存分析]
+    K --> L{文本长度 >60 tokens?}
+    L -->|是| M[split_long_by_root<br/>动态规划按词根切分]
+    L -->|否| N[保持原文本]
+    M --> O[split_by_nlp.txt]
+    N --> O
 ```
+
+**时间间隔切分处理顺序**：
+
+1. **先 spaCy 标点分句**：使用 spaCy 的 `doc.sents` 对全文进行标点分句
+2. **后时间二次切分**：对每个 spaCy 分出的句子，检查内部是否有超阈值的时间间隔
+   - 检查单词的 `duration`（持续时间）：Whisper 会把停顿时间算入单词持续时间
+   - 检查单词间的 `gap_to_next`（间隔）：真正的单词间停顿
+   - 如果任一值超过阈值，在该位置切分
+
+> **为什么是这个顺序**：
+> - 如果先时间切分再 spaCy 分句，spaCy 可能会对时间切分产生的片段做错误的二次分句
+> - 例如日语 spaCy 可能把"かね何..."错误地切成"か"和"ね何..."
+> - 先 spaCy 再时间切分，可以保留 spaCy 的标点识别能力，同时利用时间信息做精确切分
 
 **spaCy 在 Step 3.1 的作用**：
 
@@ -213,22 +446,28 @@ flowchart TD
 | 分词 (tokenize) | 计算文本长度 | 判断是否需要进一步切分 |
 | 依存分析 (dep) | 识别连接词 | `that`, `which`, `ので`, `ため` 等 |
 | 词性标注 (pos) | 识别词根 | 动词、名词等作为切分点 |
-| 句子边界 (sents) | 粗切分 | 仅对有标点的语言有效 |
+| 句子边界 (sents) | 标点分句 | 对全文做初步标点分句 |
 
 **时间间隔切分参数**：
 
 | 参数 | 配置键 | 默认值 | 说明 |
 |-----|-------|-------|------|
-| 时间间隔阈值 | `time_gap_threshold` | 空 (不启用) | 单词持续时间超过此值(秒)时强制切分，日语推荐 1.0 |
+| 时间间隔阈值 | `time_gap_threshold` | 空 (不启用) | 单词持续时间或间隔超过此值(秒)时在 spaCy 句子内部再切分 |
 
-> **日语处理优化**：日语口语通常没有明显标点，但 ASR 会在自然停顿处产生较长的单词持续时间。
-> 设置 `time_gap_threshold: 1.0` 可以利用这些停顿点进行切分。
+> **日语处理优化**：日语口语通常没有明显标点，但 Whisper ASR 会在自然停顿处产生较长的单词持续时间。
+> 设置 `time_gap_threshold: 3` 可以利用这些停顿点进行切分。
+> 
+> **注意**：Whisper 通常把停顿时间算入前一个单词的 `duration`，而不是 `gap_to_next`。
+> 因此代码同时检查这两个值，确保不遗漏任何停顿点。
 
 **文件流**：
 
 ```
 cleaned_chunks.xlsx     ← ASR 输出（字符级时间戳）
-    ↓ split_by_mark()       按标点/时间粗切分
+    ↓ split_by_mark()       
+    │   1. 拼接全文
+    │   2. spaCy 标点分句
+    │   3. (可选) 按时间间隔二次切分
 split_by_mark.txt (临时)
     ↓ split_by_comma_main() 按逗号切分
 split_by_comma.txt (临时)
@@ -296,7 +535,7 @@ flowchart TD
 
 | 参数 | 配置键 | 默认值 | 说明 |
 |-----|-------|-------|------|
-| 最大分割长度 | `max_split_length` | 日语12 / 其他20 | 超过此 token 数触发 GPT 分句 |
+| 最大分割长度 | `max_split_length` | 20 | 超过此 token 数触发 GPT 分句 |
 | 时间间隔阈值 | `time_gap_threshold` | 空 (不启用) | Step 3.1 中按时间切分的阈值(秒) |
 | 并发数 | `max_workers` | 4 | GPT 请求并发数 |
 | 相似度阈值 | - | 0.9 | 分割点定位的最小相似度 |
@@ -331,29 +570,156 @@ GPT 返回:
 
 ### Step 4.2: 翻译双步骤流程
 
+> **⚠️ CJK 模式的分句"破坏"与重建**
+>
+> 对于 CJK 语言（日语 ja、中文 zh、韩语 ko），Step 4.2 会**打破 Step 3.2 的分句结构**：
+> - Step 3.2 精心分割的语义句子在 Step 4.2 被**合并成大块**发送给 LLM 翻译
+> - 翻译结果按 LLM 自然换行分割，**不再与原文行数对应**
+> - 原文字符被**按字符数均匀分配**到翻译行中（用于显示对照，非语义对应）
+> - 时间戳也被**均匀分配**到新的翻译行上
+>
+> **目的**：CJK 语言的特点是没有空格分词，Step 3.2 的分句结果可能在翻译后产生不自然的断句。
+> 让 LLM 在翻译时自主决定如何断句，可以获得更流畅的目标语言字幕。
+>
+> **后果**：原文与译文的**行级对应关系被破坏**，但 Step 5 会再次基于字幕长度限制进行分割对齐。
+
 ```mermaid
 flowchart TD
-    A[输入文本] --> B[Step 1: 忠实翻译]
-    B --> C{启用达意翻译?}
-    C -->|是| D[Step 2: 达意翻译]
-    C -->|否| E[输出翻译结果]
-    D --> E
-    
-    subgraph Step1["忠实翻译 (Faithfulness)"]
-        B1["直译原文"]
-        B2["保持原意"]
-        B3["参考术语表"]
-    end
-    
-    subgraph Step2["达意翻译 (Expressiveness)"]
-        D1["润色表达"]
-        D2["优化语序"]
-        D3["适应目标语言"]
-    end
-    
-    B --> Step1
-    D --> Step2
+    A[输入文本] --> B["Step 1: 忠实翻译<br/>(直译原文、保持原意、参考术语表)"]
+    B --> C{reflect_translate?}
+    C -->|true| D["Step 2: 达意翻译<br/>(润色表达、优化语序、适应目标语言)"]
+    C -->|false| E[输出忠实翻译结果]
+    D --> F[输出达意翻译结果]
 ```
+
+#### CJK 模式技术实现
+
+```mermaid
+flowchart TD
+    A[split_by_meaning.txt<br/>Step 3.2 分句结果] --> B{检测源语言}
+    
+    B -->|非 CJK| C[保持原行结构翻译]
+    B -->|CJK: ja/zh/ko| D[CJK 模式]
+    
+    subgraph CJK["CJK 模式处理"]
+        D --> D1[合并多行成大块<br/>600字符/10行上限]
+        D1 --> D2[发送给 LLM 翻译]
+        D2 --> D3[获取翻译结果<br/>LLM 自然断行]
+        D3 --> D4[原文按字符数<br/>均匀分配到译文行]
+        D4 --> D5[时间戳按译文行数<br/>均匀分配]
+    end
+    
+    subgraph NonCJK["非 CJK 模式处理"]
+        C --> C1[逐行翻译保持对应]
+        C1 --> C2[相似度匹配验证]
+        C2 --> C3[原行 ↔ 译行 1:1 对应]
+    end
+    
+    D5 --> E[translation.xlsx]
+    C3 --> E
+    
+    E --> F[Step 5: 字幕分割<br/>基于 subtitle.max_length 再次切分]
+```
+
+**CJK 模式关键代码逻辑**:
+
+```python
+# 检测是否为 CJK 语言
+cjk_languages = ['ja', 'zh', 'ko', 'japanese', 'chinese', 'korean']
+is_cjk = detected_language.lower() in cjk_languages
+
+if is_cjk:
+    # 原文字符均匀分配到译文行
+    chars_per_line = len(src_block) // len(trans_lines)
+    src_text.append(src_block[start_idx:end_idx])
+    
+    # 时间戳均匀分配
+    duration_per_line = total_duration / num_lines
+```
+
+### Step 5: 字幕分割对齐（重建分句结构）
+
+> **📌 Step 5 的核心作用**
+>
+> Step 5 基于**显示长度限制**重新切分字幕，确保每行字幕不超过 `subtitle.max_length` 字符。
+> 这一步对于 CJK 模式尤其重要，因为 Step 4.2 已经破坏了原有的分句结构。
+
+```mermaid
+flowchart TD
+    A[translation.xlsx<br/>Step 4.2 翻译结果] --> B[遍历每行字幕]
+    
+    B --> C{计算显示长度<br/>calc_len考虑CJK权重}
+    
+    C -->|原文 > max_length<br/>或 译文×1.2 > max_length| D[需要分割]
+    C -->|长度合适| E[保持原样]
+    
+    subgraph Split["GPT 分割处理"]
+        D --> D1[调用 split_sentence<br/>与 Step 3.2 相同函数]
+        D1 --> D2[GPT 分成 2 部分]
+        D2 --> D3[align_subs 对齐<br/>原文与译文同步分割]
+    end
+    
+    D3 --> F{还有超长行?}
+    F -->|是| G[递归处理<br/>最多 3 次]
+    G --> B
+    F -->|否| H[输出 split_sub.xlsx]
+    E --> H
+```
+
+**字幕长度计算权重**：
+
+```python
+def calc_len(text: str) -> float:
+    """计算字幕显示长度，考虑不同字符宽度"""
+    # 中日文字符权重 1.75
+    # 韩文字符权重 1.5
+    # 泰文字符权重 1.0
+    # 全角符号权重 1.75
+    # 英文和半角符号权重 1.0
+```
+
+**Step 5 关键参数**：
+
+| 参数 | 配置键 | 默认值 | 说明 |
+|-----|-------|-------|------|
+| 字幕最大长度 | `subtitle.max_length` | 75 | 每行字幕的最大字符数（考虑权重后） |
+| 译文长度倍数 | `subtitle.target_multiplier` | 1.2 | 译文通常比原文长，乘以此倍数后判断是否超长 |
+
+### Step 3-4-5 分句流程总览
+
+```mermaid
+flowchart LR
+    subgraph Step3["Step 3: 初次分句"]
+        A1["3.1 NLP 粗分"] --> A2["3.2 GPT 语义分句"]
+    end
+    
+    subgraph Step4["Step 4: 翻译"]
+        B1["4.1 术语提取"] --> B2["4.2 翻译"]
+        B2 --> B3{CJK?}
+        B3 -->|是| B4["破坏分句结构<br/>LLM 自然断行"]
+        B3 -->|否| B5["保持 1:1 对应"]
+    end
+    
+    subgraph Step5["Step 5: 重建分句"]
+        C1["检查每行长度"] --> C2{超长?}
+        C2 -->|是| C3["GPT 分割 + 对齐"]
+        C2 -->|否| C4["保持原样"]
+    end
+    
+    A2 --> B1
+    B4 --> C1
+    B5 --> C1
+    C3 --> D["split_sub.xlsx<br/>最终字幕分句"]
+    C4 --> D
+    
+    style B4 fill:#ffcccc,stroke:#cc0000
+    style C3 fill:#ccffcc,stroke:#00cc00
+```
+
+> **设计意图总结**：
+> - **Step 3.2**: 基于语义的"粗分"，为翻译提供合理的上下文单元
+> - **Step 4.2 CJK 模式**: 打破分句，让 LLM 翻译时自然断行，获得流畅的目标语言
+> - **Step 5**: 基于显示长度的"精分"，确保字幕可读性，使用同样的 GPT 分句函数重建结构
 
 ---
 
@@ -452,6 +818,16 @@ classDiagram
         +demucs_vl.py
         +audio_preprocess.py
         +transcribe_audio()
+        +speaker_diarization()
+    }
+    
+    class SpeakerDiarization {
+        +pyannote.audio 4.0.3 Pipeline
+        +speaker-diarization-3.1
+        +segmentation-3.0
+        +speechbrain/spkrec-ecapa-voxceleb
+        +AgglomerativeClustering
+        +whisperx.assign_word_speakers()
     }
     
     class SpacyUtils {
@@ -482,6 +858,7 @@ classDiagram
     }
     
     Core --> ASRBackend : uses
+    ASRBackend --> SpeakerDiarization : optional
     Core --> SpacyUtils : uses
     Core --> TTSBackend : uses
     Core --> Utils : uses
@@ -556,12 +933,30 @@ graph LR
         F["WhisperX<br/>单词级对齐"]
     end
     
+    subgraph Diarization["说话人分离 (可选)"]
+        G["pyannote.audio<br/>speaker-diarization-3.1"]
+    end
+    
     A --> F
     B --> F
     C --> F
     D --> F
     E --> F
+    F --> G
 ```
+
+### 说话人分离技术栈 (pyannote-audio 4.0.3)
+
+| 组件 | 模型/库 | HuggingFace 地址 | 说明 |
+|-----|--------|------------------|------|
+| Pipeline | pyannote-audio 4.0.3 | `pyannote/speaker-diarization-3.1` | 主 Pipeline 配置文件 |
+| VAD + OSD | segmentation-3.0 | `pyannote/segmentation-3.0` | 语音活动检测 + 重叠语音检测 |
+| Speaker Embedding | ECAPA-TDNN | `speechbrain/spkrec-ecapa-voxceleb` | 提取说话人 512 维特征向量 |
+| Clustering | AgglomerativeClustering | - | 层次聚类，合并同一说话人 |
+| Speaker Assignment | whisperx | `whisperx.assign_word_speakers` | 将说话人标签分配到每个词 |
+
+> **版本变更说明**: pyannote-audio 4.0 使用 `speechbrain/spkrec-ecapa-voxceleb` (ECAPA-TDNN) 替代了
+> 之前版本的 `wespeaker-voxceleb-resnet34-LM`，提供更好的说话人嵌入质量。
 
 ### TTS 功能支持表
 
@@ -608,7 +1003,7 @@ flowchart TD
     end
     
     subgraph Log["output/log/"]
-        L1["cleaned_chunks.xlsx"]
+        L1["cleaned_chunks.xlsx<br/>(含 speaker 列)"]
         L2["split_by_nlp.txt"]
         L3["split_by_meaning.txt"]
         L4["translation.xlsx"]
@@ -683,6 +1078,9 @@ mindmap
     网络配置
       hf_mirror
       http_proxy
+    说话人分离
+      speaker_diarization
+      hf_token
 ```
 
 ---

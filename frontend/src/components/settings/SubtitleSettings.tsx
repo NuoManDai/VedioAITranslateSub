@@ -4,14 +4,14 @@
  */
 import { Form, Select, Switch, Input, InputNumber, Tooltip } from 'antd'
 import { useTranslation } from 'react-i18next'
-import { SOURCE_LANGUAGES, TARGET_LANGUAGES, WHISPER_METHODS, WhisperMethod } from '../../types'
+import { SOURCE_LANGUAGES, TARGET_LANGUAGES, WHISPER_METHODS, WHISPER_MODELS, WhisperMethod } from '../../types'
 import { API_LINKS } from './constants'
 import { QuestionCircleOutlined } from '@ant-design/icons'
 
-// 根据语言获取默认分词长度
-export const getDefaultMaxSplitLength = (language: string): number => {
-  // 日语默认12，其他语言默认20
-  return language === 'ja' ? 12 : 20
+// 获取默认分词长度
+export const getDefaultMaxSplitLength = (): number => {
+  // 统一默认20
+  return 20
 }
 
 interface SubtitleSettingsProps {
@@ -50,6 +50,19 @@ export default function SubtitleSettings({ whisperMethod, onWhisperMethodChange,
           onChange={(value) => onWhisperMethodChange(value as WhisperMethod)}
         />
       </Form.Item>
+      
+      {/* Local Whisper Model Selection - show for both whisper and whisperx_local */}
+      {(whisperMethod === 'whisper' || whisperMethod === 'whisperx_local') && (
+        <Form.Item 
+          name="whisperModel" 
+          label={t('Whisper Model')}
+          tooltip={t('whisperModelTooltip')}
+        >
+          <Select 
+            options={WHISPER_MODELS.map(m => ({ value: m.value, label: m.label }))} 
+          />
+        </Form.Item>
+      )}
       
       {/* Cloud Whisper - 302.ai */}
       {whisperMethod === 'cloud' && (
@@ -122,6 +135,25 @@ export default function SubtitleSettings({ whisperMethod, onWhisperMethodChange,
           step={0.1}
           style={{ width: '100%' }}
           placeholder={t('timeGapThresholdPlaceholder')}
+          addonAfter="s"
+        />
+      </Form.Item>
+      <Form.Item 
+        name="subtitleMaxLength" 
+        label={
+          <span>
+            {t('Subtitle Max Length')}
+            <Tooltip title={t('subtitleMaxLengthTooltip')}>
+              <QuestionCircleOutlined style={{ marginLeft: 4, color: '#999' }} />
+            </Tooltip>
+          </span>
+        }
+      >
+        <InputNumber 
+          min={30} 
+          max={150} 
+          style={{ width: '100%' }}
+          placeholder={t('subtitleMaxLengthPlaceholder')}
         />
       </Form.Item>
       <Form.Item name="demucs" label={t('Vocal separation enhance')} valuePropName="checked">

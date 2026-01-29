@@ -32,6 +32,15 @@ class WhisperConfig(BaseModel):
     whisperX_model: str = Field(default='large-v2', description="WhisperX 模型")
     whisperX_302_api_key: Optional[str] = Field(None, description="302.ai API 密钥")
     elevenlabs_api_key: Optional[str] = Field(None, description="ElevenLabs API 密钥")
+    use_segment_mode: bool = Field(default=False, description="使用Whisper原生分句而非逐字输出")
+
+
+class SubtitleConfig(BaseModel):
+    """字幕显示配置"""
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+    
+    max_length: int = Field(default=75, description="每行字幕最大字符数")
+    target_multiplier: float = Field(default=1.2, description="译文长度权重倍数")
 
 
 class Configuration(BaseModel):
@@ -48,10 +57,14 @@ class Configuration(BaseModel):
     # 字幕设置
     source_language: str = Field(default='en', description="源语言")
     target_language: str = Field(default='简体中文', description="目标语言")
-    max_split_length: int = Field(default=20, description="GPT分句阈值(token数)，日语默认12，其他默认20")
+    max_split_length: int = Field(default=20, description="GPT分句阈值(token数)，默认20")
     time_gap_threshold: Optional[float] = Field(default=None, description="时间间隔切分阈值(秒)，日语推荐1.0，为空则不启用")
     demucs: bool = Field(default=False, description="是否启用人声分离")
     burn_subtitles: bool = Field(default=True, description="是否烧录字幕")
+    cjk_split: bool = Field(default=False, description="CJK模式：使用LLM断句切分字幕（推荐日语/中文/韩语使用）")
+    
+    # 字幕显示设置
+    subtitle: SubtitleConfig = Field(default_factory=SubtitleConfig)
     
     # Whisper 设置
     whisper: WhisperConfig = Field(default_factory=WhisperConfig)
@@ -115,6 +128,7 @@ class ConfigurationUpdate(BaseModel):
     time_gap_threshold: Optional[float] = None
     demucs: Optional[bool] = None
     burn_subtitles: Optional[bool] = None
+    subtitle: Optional[SubtitleConfig] = None
     whisper: Optional[WhisperConfig] = None
     tts_method: Optional[str] = None
     # OpenAI TTS

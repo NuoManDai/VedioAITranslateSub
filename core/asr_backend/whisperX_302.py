@@ -10,7 +10,8 @@ from core.utils import *
 from core.utils.models import *
 
 OUTPUT_LOG_DIR = "output/log"
-def transcribe_audio_302(raw_audio_path: str, vocal_audio_path: str, start: float = None, end: float = None):
+def transcribe_audio_302(raw_audio_path: str, vocal_audio_path: str, start: float = None, end: float = None, WHISPER_LANGUAGE: str = None, device: str = None):
+    # WHISPER_LANGUAGE and device are accepted for API consistency but loaded from config
     os.makedirs(OUTPUT_LOG_DIR, exist_ok=True)
     LOG_FILE = f"{OUTPUT_LOG_DIR}/whisperx302_{start}_{end}.json"
     if os.path.exists(LOG_FILE):

@@ -64,7 +64,8 @@ def elev2whisper(elev_json, word_level_timestamp = False):
                 }
     return {"segments": segments}
 
-def transcribe_audio_elevenlabs(raw_audio_path, vocal_audio_path, start = None, end = None):
+def transcribe_audio_elevenlabs(raw_audio_path, vocal_audio_path, start = None, end = None, WHISPER_LANGUAGE = None, device = None):
+    # WHISPER_LANGUAGE and device are accepted for API consistency but loaded from config
     rprint(f"[cyan]🎤 Processing audio transcription, file path: {vocal_audio_path}[/cyan]")
     LOG_FILE = f"output/log/elevenlabs_transcribe_{start}_{end}.json"
     if os.path.exists(LOG_FILE):

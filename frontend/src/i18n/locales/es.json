@@ -20,6 +20,8 @@
     "Target Lang": "Idioma objetivo",
     "Input any language in natural language, as long as llm can understand": "Ingrese cualquier idioma en lenguaje natural, siempre que LLM pueda entenderlo",
     "Vocal separation enhance": "Mejora de separación vocal",
+    "Whisper Model": "Modelo Whisper",
+    "whisperModelTooltip": "Seleccione el modelo Whisper: large-v3 tiene la mejor precisión, medium produce más signos de puntuación (mejor para división de oraciones).",
     "Burn-in Subtitles": "Incrustar subtítulos",
     "Whether to burn subtitles into the video, will increase processing time": "Si se deben incrustar los subtítulos en el video, aumentará el tiempo de procesamiento",
     "Video Resolution": "Resolución de video",

@@ -3,9 +3,11 @@
 # ------------------------------------------
 
 _2_CLEANED_CHUNKS = "output/log/cleaned_chunks.xlsx"
+_2_SEGMENTS = "output/log/segments.xlsx"  # ASR segment级时间戳（用于CJK）
 _3_1_SPLIT_BY_NLP = "output/log/split_by_nlp.txt"
 _3_2_SPLIT_BY_MEANING = "output/log/split_by_meaning.txt"
 _4_1_TERMINOLOGY = "output/log/terminology.json"
+_4_2_TRANSLATION_TXT = "output/gpt_log/translate_expressiveness.txt"
 _4_2_TRANSLATION = "output/log/translation_results.xlsx"
 _5_SPLIT_SUB = "output/log/translation_results_for_subtitles.xlsx"
 _5_REMERGED = "output/log/translation_results_remerged.xlsx"
@@ -31,9 +33,11 @@ _AUDIO_TMP_DIR = "output/audio/tmp"
 
 __all__ = [
     "_2_CLEANED_CHUNKS",
+    "_2_SEGMENTS",
     "_3_1_SPLIT_BY_NLP",
     "_3_2_SPLIT_BY_MEANING",
     "_4_1_TERMINOLOGY",
+    "_4_2_TRANSLATION_TXT",
     "_4_2_TRANSLATION",
     "_5_SPLIT_SUB",
     "_5_REMERGED",

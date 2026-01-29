@@ -100,8 +100,17 @@ def get_sentence_timestamps(df_words, df_sentences):
     
     return time_stamp_list
 
-def align_timestamp(df_text, df_translate, subtitle_output_configs: list, output_dir: str, for_display: bool = True):
-    """Align timestamps and add a new timestamp column to df_translate"""
+def align_timestamp(df_text, df_translate, subtitle_output_configs: list, output_dir: str, for_display: bool = True, keep_numeric: bool = False):
+    """Align timestamps and add a new timestamp column to df_translate
+    
+    Args:
+        df_text: DataFrame with word-level timestamps
+        df_translate: DataFrame with Source and Translation columns
+        subtitle_output_configs: List of (filename, columns) tuples for SRT output
+        output_dir: Directory to output SRT files (None to skip output)
+        for_display: Whether to polish subtitles for display
+        keep_numeric: If True, keep start/end as numeric values instead of converting to SRT format
+    """
     df_trans_time = df_translate.copy()
 
     # Assign an ID to each word in df_text['text'] and create a new DataFrame
@@ -120,8 +129,14 @@ def align_timestamp(df_text, df_translate, subtitle_output_configs: list, output
         if 0 < delta_time < 1:
             df_trans_time.at[i, 'timestamp'] = (df_trans_time.loc[i, 'timestamp'][0], df_trans_time.loc[i+1, 'timestamp'][0])
 
-    # Convert start and end timestamps to SRT format
-    df_trans_time['timestamp'] = df_trans_time['timestamp'].apply(lambda x: convert_to_srt_format(x[0], x[1]))
+    if keep_numeric:
+        # Keep start and end as separate numeric columns
+        df_trans_time['start'] = df_trans_time['timestamp'].apply(lambda x: x[0])
+        df_trans_time['end'] = df_trans_time['timestamp'].apply(lambda x: x[1])
+        df_trans_time = df_trans_time.drop(columns=['timestamp'])
+    else:
+        # Convert start and end timestamps to SRT format
+        df_trans_time['timestamp'] = df_trans_time['timestamp'].apply(lambda x: convert_to_srt_format(x[0], x[1]))
 
     # Polish subtitles: replace punctuation in Translation if for_display
     if for_display:

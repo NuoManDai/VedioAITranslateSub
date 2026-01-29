@@ -46,7 +46,8 @@ class ProcessingStage(BaseModel):
 STAGE_OUTPUT_FILES = {
     # 字幕处理阶段
     'asr': [
-        {'name': 'cleaned_chunks.xlsx', 'path': 'output/log/cleaned_chunks.xlsx', 'type': 'xlsx', 'description': 'ASR识别结果（带时间戳）'},
+        {'name': 'cleaned_chunks.xlsx', 'path': 'output/log/cleaned_chunks.xlsx', 'type': 'xlsx', 'description': 'ASR逐字识别结果（Word级时间戳）'},
+        {'name': 'segments.xlsx', 'path': 'output/log/segments.xlsx', 'type': 'xlsx', 'description': 'ASR逐句识别结果（Segment级时间戳）'},
         {'name': 'raw.mp3', 'path': 'output/audio/raw.mp3', 'type': 'mp3', 'description': '提取的原始音频'},
         {'name': 'vocal.mp3', 'path': 'output/audio/vocal.mp3', 'type': 'mp3', 'description': '分离的人声音频'},
         {'name': 'background.mp3', 'path': 'output/audio/background.mp3', 'type': 'mp3', 'description': '分离的背景音乐'},
@@ -66,6 +67,7 @@ STAGE_OUTPUT_FILES = {
         {'name': 'summary.json', 'path': 'output/gpt_log/summary.json', 'type': 'json', 'description': 'LLM摘要日志'},
     ],
     'translate': [
+        {'name': 'translation_results.txt', 'path': 'output/log/translation_results.txt', 'type': 'txt', 'description': '原始翻译对照（未处理）'},
         {'name': 'translation_results.xlsx', 'path': 'output/log/translation_results.xlsx', 'type': 'xlsx', 'description': '翻译结果（带时间戳）'},
         {'name': 'translate_faithfulness.json', 'path': 'output/gpt_log/translate_faithfulness.json', 'type': 'json', 'description': 'LLM直译日志'},
         {'name': 'translate_expressiveness.json', 'path': 'output/gpt_log/translate_expressiveness.json', 'type': 'json', 'description': 'LLM意译日志'},

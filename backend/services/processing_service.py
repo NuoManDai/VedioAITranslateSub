@@ -16,6 +16,13 @@ import threading
 from models import ProcessingJob, Video
 from api.deps import get_app_state, get_output_dir, get_project_root, get_log_store
 
+# Import cancel flag utilities from core
+import sys
+_project_root = get_project_root()
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+from core.utils.config_utils import set_cancel_flag, clear_cancel_flag
+
 logger = logging.getLogger(__name__)
 
 
@@ -232,6 +239,10 @@ class ProcessingService:
         log_store = get_log_store()
         job.start()
         
+        # Clear BOTH cancel flags at the start (memory + file)
+        state.clear_cancel_request()  # Clear in-memory flag
+        clear_cancel_flag()  # Clear file-based flag
+        
         # Log pipeline start
         log_store.info(
             f"开始字幕处理流程 (视频: {video.filename})", 
@@ -307,12 +318,17 @@ class ProcessingService:
             )
         finally:
             state.clear_cancel_request()
+            clear_cancel_flag()  # Also clear file-based flag
     
     async def run_dubbing_processing(self, job: ProcessingJob, video: Video):
         """Run the dubbing processing pipeline"""
         state = get_app_state()
         log_store = get_log_store()
         job.start()
+        
+        # Clear BOTH cancel flags at the start (memory + file)
+        state.clear_cancel_request()  # Clear in-memory flag
+        clear_cancel_flag()  # Clear file-based flag
         
         # Log pipeline start
         log_store.info(
@@ -377,6 +393,7 @@ class ProcessingService:
             )
         finally:
             state.clear_cancel_request()
+            clear_cancel_flag()  # Also clear file-based flag
     
     async def _run_stage(self, job: ProcessingJob, stage_name: str, stage_func):
         """Run a single processing stage with output capture"""

@@ -1,6 +1,7 @@
 """
 Config Service - Business logic for configuration management
 """
+import os
 import yaml
 from ruamel.yaml import YAML
 from pathlib import Path
@@ -54,16 +55,54 @@ class ConfigService:
         # Use by_alias=False to get snake_case keys from Pydantic model
         update_dict = update.model_dump(exclude_unset=True, by_alias=False)
         
+        # Fields that should be removed from YAML when set to None
+        nullable_fields = {'time_gap_threshold', 'timeGapThreshold'}
+        
+        # Fields that map to nested YAML structure
+        nested_field_mapping = {
+            'cjk_split': ('subtitle', 'cjk_split'),  # cjk_split -> subtitle.cjk_split
+        }
+        
+        # Pydantic field names that differ from YAML key names (nested keys)
+        # Maps pydantic_field_name -> yaml_key_name for nested dict values
+        yaml_key_mapping = {
+            'whisperX_model': 'model',      # whisper.whisperX_model -> whisper.model
+            'whisper_x_model': 'model',     # Also handle snake_case version
+            'method': 'runtime',            # whisper.method -> whisper.runtime
+        }
+        
         for key, value in update_dict.items():
+            # Ensure key is in snake_case for YAML storage
+            yaml_key = to_snake_case(key)
+            
+            # Handle nullable fields - remove from YAML if None
+            if key in nullable_fields or yaml_key in nullable_fields:
+                if value is None:
+                    # Remove the key from YAML to disable the feature
+                    if yaml_key in raw_yaml:
+                        del raw_yaml[yaml_key]
+                    continue
+            
+            # Handle nested field mappings (like cjk_split -> subtitle.cjk_split)
+            if yaml_key in nested_field_mapping:
+                parent_key, child_key = nested_field_mapping[yaml_key]
+                if parent_key not in raw_yaml:
+                    raw_yaml[parent_key] = {}
+                raw_yaml[parent_key][child_key] = value
+                continue
+            
             if value is not None:
-                # Ensure key is in snake_case for YAML storage
-                yaml_key = to_snake_case(key)
                 if isinstance(value, dict) and yaml_key in raw_yaml and isinstance(raw_yaml.get(yaml_key), dict):
                     # Merge nested dicts - only update specified keys
                     for sub_key, sub_value in value.items():
                         if sub_value is not None:
-                            # Convert nested keys to snake_case too
+                            # Convert nested keys to snake_case, then apply yaml_key_mapping
                             yaml_sub_key = to_snake_case(sub_key)
+                            # Check if there's a special mapping for this field
+                            if yaml_sub_key in yaml_key_mapping:
+                                yaml_sub_key = yaml_key_mapping[yaml_sub_key]
+                            elif sub_key in yaml_key_mapping:
+                                yaml_sub_key = yaml_key_mapping[sub_key]
                             raw_yaml[yaml_key][yaml_sub_key] = sub_value
                 else:
                     raw_yaml[yaml_key] = value
@@ -72,7 +111,34 @@ class ConfigService:
         with open(self.config_file, 'w', encoding='utf-8') as f:
             ruamel.dump(raw_yaml, f)
         
+        # Apply network settings immediately to environment variables
+        self._apply_network_settings(update_dict)
+        
         return self.load_config()
+    
+    def _apply_network_settings(self, update_dict: dict) -> None:
+        """Apply network-related settings to environment variables immediately"""
+        # Handle http_proxy
+        if 'http_proxy' in update_dict:
+            http_proxy = update_dict['http_proxy']
+            if http_proxy:
+                os.environ["HTTP_PROXY"] = http_proxy
+                os.environ["HTTPS_PROXY"] = http_proxy
+                os.environ["HF_HUB_HTTP_PROXY"] = http_proxy
+            else:
+                # Clear proxy if set to empty
+                os.environ.pop("HTTP_PROXY", None)
+                os.environ.pop("HTTPS_PROXY", None)
+                os.environ.pop("HF_HUB_HTTP_PROXY", None)
+        
+        # Handle hf_mirror
+        if 'hf_mirror' in update_dict:
+            hf_mirror = update_dict['hf_mirror']
+            if hf_mirror:
+                os.environ["HF_ENDPOINT"] = hf_mirror
+            else:
+                # Use default mirror if cleared
+                os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
     
     async def validate_api_key(self, key: str, base_url: str, model: str) -> ApiValidateResponse:
         """Validate API key by making a test request"""
@@ -138,7 +204,8 @@ class ConfigService:
                 method=whisper_data.get('runtime', 'local'),
                 whisperX_model=whisper_data.get('model', 'large-v3'),
                 whisperX_302_api_key=whisper_data.get('whisperX_302_api_key'),
-                elevenlabs_api_key=whisper_data.get('elevenlabs_api_key')
+                elevenlabs_api_key=whisper_data.get('elevenlabs_api_key'),
+                use_segment_mode=whisper_data.get('use_segment_mode', False)
             )
         
         # Get TTS configurations from nested structures
@@ -151,6 +218,14 @@ class ConfigService:
         sf_cosyvoice2 = data.get('sf_cosyvoice2', {})
         f5tts = data.get('f5tts', {})
         
+        # Get subtitle config
+        subtitle_data = data.get('subtitle', {})
+        from models import SubtitleConfig
+        subtitle_config = SubtitleConfig(
+            max_length=subtitle_data.get('max_length', 75),
+            target_multiplier=subtitle_data.get('target_multiplier', 1.2)
+        )
+        
         return Configuration(
             display_language=data.get('display_language', '简体中文'),
             api=api_config or Configuration().api,
@@ -161,6 +236,8 @@ class ConfigService:
             time_gap_threshold=data.get('time_gap_threshold'),
             demucs=data.get('demucs', False),
             burn_subtitles=data.get('burn_subtitles', True),
+            cjk_split=subtitle_data.get('cjk_split', False),
+            subtitle=subtitle_config,
             whisper=whisper_config or Configuration().whisper,
             tts_method=data.get('tts_method', 'edge_tts'),
             # OpenAI TTS
@@ -227,6 +304,7 @@ class ConfigService:
                 'runtime': config['whisper'].get('method', 'local'),
                 'model': config['whisper'].get('whisperX_model', 'large-v3'),
                 'language': source_language,  # Source language goes into whisper.language
+                'use_segment_mode': config['whisper'].get('use_segment_mode', False),
             }
             if config['whisper'].get('whisperX_302_api_key'):
                 yaml_data['whisper']['whisperX_302_api_key'] = config['whisper']['whisperX_302_api_key']
@@ -238,6 +316,7 @@ class ConfigService:
                 'runtime': 'local',
                 'model': 'large-v3',
                 'language': source_language,
+                'use_segment_mode': False,
             }
         
         yaml_data['tts_method'] = config.get('tts_method', 'edge_tts')

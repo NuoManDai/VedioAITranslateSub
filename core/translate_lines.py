@@ -61,7 +61,9 @@ def translate_lines(lines, previous_content_prompt, after_cotent_prompt, things_
                 table.add_row("[yellow]" + "-" * 50 + "[/yellow]")
         
         console.print(table)
-        return translate_result, lines
+        # Return full translation data for logging
+        full_result = {k: {"origin": v["origin"], "direct": v["direct"]} for k, v in faith_result.items()}
+        return translate_result, lines, full_result
 
     ## Step 2: Express Smoothly  
     prompt2 = get_prompt_expressiveness(faith_result, lines, shared_prompt)
@@ -77,14 +79,26 @@ def translate_lines(lines, previous_content_prompt, after_cotent_prompt, things_
             table.add_row("[yellow]" + "-" * 50 + "[/yellow]")
 
     console.print(table)
+    
+    # Build full result with all translation steps
+    full_result = {}
+    for key in express_result:
+        full_result[key] = {
+            "origin": faith_result[key]["origin"],
+            "direct": faith_result[key]["direct"],
+            "reflect": express_result[key].get("reflect", ""),
+            "free": express_result[key]["free"]
+        }
 
     # For CJK languages (Chinese, Japanese, Korean), preserve LLM's sentence breaks
     # as they provide better semantic segmentation than source word-level timestamps
+    # Auto-detect CJK mode based on source language
     whisper_language = load_key("whisper.language")
     detected_language = load_key("whisper.detected_language") if whisper_language == 'auto' else whisper_language
     cjk_languages = ['ja', 'zh', 'ko', 'japanese', 'chinese', 'korean']
+    use_cjk_mode = detected_language.lower() in cjk_languages
     
-    if detected_language.lower() in cjk_languages:
+    if use_cjk_mode:
         # Keep the \n from LLM translation for CJK languages
         # This provides better sentence segmentation for subtitle display
         all_free_lines = []
@@ -99,7 +113,7 @@ def translate_lines(lines, previous_content_prompt, after_cotent_prompt, things_
         source_result = lines.replace('\n', '')  # Join source as one block
         
         console.print(f"[blue]📝 CJK mode: Using LLM sentence breaks ({len(all_free_lines)} lines)[/blue]")
-        return translate_result, source_result
+        return translate_result, source_result, full_result
     else:
         # For non-CJK languages, keep original behavior (match source line count)
         translate_result = "\n".join([express_result[i]["free"].replace('\n', ' ').strip() for i in express_result])
@@ -108,7 +122,7 @@ def translate_lines(lines, previous_content_prompt, after_cotent_prompt, things_
             console.print(Panel(f'[red]❌ Translation of block {index} failed, Length Mismatch, Please check `output/gpt_log/translate_expressiveness.json`[/red]'))
             raise ValueError(f'Origin ···{lines}···,\nbut got ···{translate_result}···')
 
-        return translate_result, lines
+        return translate_result, lines, full_result
 
 
 if __name__ == '__main__':

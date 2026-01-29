@@ -89,7 +89,7 @@ def split_long_by_root_main(nlp):
                 continue
             output_file.write(sentence + "\n")
 
-    # delete the original file
+    # Keep split_by_connector.txt for user inspection (no longer deleting)
     os.remove(SPLIT_BY_CONNECTOR_FILE)   
 
     rprint(f"[green]💾 Long sentences split by root saved to →  {_3_1_SPLIT_BY_NLP}[/green]")

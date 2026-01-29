@@ -2,6 +2,7 @@
 Processing API routes
 """
 import os
+import sys
 import zipfile
 from pathlib import Path
 from io import BytesIO
@@ -11,8 +12,14 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
 from models import ProcessingJob, ProcessingStatus
-from api.deps import get_app_state, get_output_dir
+from api.deps import get_app_state, get_output_dir, get_project_root
 from services.processing_service import ProcessingService
+
+# Import cancel flag utilities from core
+_project_root = get_project_root()
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+from core.utils.config_utils import set_cancel_flag
 
 router = APIRouter()
 processing_service = ProcessingService()
@@ -164,8 +171,9 @@ async def cancel_processing():
     if not state.subtitle_job and not state.dubbing_job:
         raise HTTPException(status_code=400, detail="没有正在进行的处理")
     
-    # Request cancellation
+    # Request cancellation - set both in-memory flag and file flag
     state.request_cancel()
+    set_cancel_flag()  # Set file-based flag for core modules
     
     # Update job status
     if state.subtitle_job and state.subtitle_job.status == 'running':

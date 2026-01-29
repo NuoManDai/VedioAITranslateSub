@@ -7,9 +7,11 @@ import whisperx
 import librosa
 from rich import print as rprint
 from core.utils import *
+from core.asr_backend._common import select_vad_parameters, run_speaker_diarization
 
 warnings.filterwarnings("ignore")
 MODEL_DIR = load_key("model_dir")
+
 
 @except_handler("failed to check hf mirror", default_return=None)
 def check_hf_mirror():
@@ -51,14 +53,17 @@ def check_hf_mirror():
     return fastest_url
 
 @except_handler("WhisperX processing error:")
-def transcribe_audio(raw_audio_file, vocal_audio_file, start, end):
+def transcribe_audio(raw_audio_file, vocal_audio_file, start, end, WHISPER_LANGUAGE=None, device=None):
     # Note: hf-mirror.com cannot bypass xethub CDN for large files
     # If you need to download models, use a proxy with HF_ENDPOINT=https://huggingface.co
     # Or pre-download models to MODEL_DIR using: 
     #   curl -L -x http://127.0.0.1:PROXY_PORT -o model.bin "https://huggingface.co/Systran/faster-whisper-large-v3/resolve/main/model.bin"
     
-    WHISPER_LANGUAGE = load_key("whisper.language")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # Use passed parameters or load from config
+    if WHISPER_LANGUAGE is None:
+        WHISPER_LANGUAGE = load_key("whisper.language")
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
     rprint(f"🚀 Starting WhisperX using device: {device} ...")
     
     if device == "cuda":
@@ -95,30 +100,109 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end):
     else:
         rprint(f"[green]📥 Using WHISPER model from HuggingFace:[/green] {model_name} ...")
 
-    vad_options = {"vad_onset": 0.500,"vad_offset": 0.363}
-    asr_options = {"temperatures": [0],"initial_prompt": "",}
     whisper_language = None if 'auto' in WHISPER_LANGUAGE else WHISPER_LANGUAGE
-    rprint("[bold yellow] You can ignore warning of `Model was trained with torch 1.10.0+cu102, yours is 2.0.0+cu118...`[/bold yellow]")
-    model = whisperx.load_model(model_name, device, compute_type=compute_type, language=whisper_language, vad_options=vad_options, asr_options=asr_options, download_root=MODEL_DIR)
 
     def load_audio_segment(audio_file, start, end):
         audio, _ = librosa.load(audio_file, sr=16000, offset=start, duration=end - start, mono=True)
         return audio
+
     raw_audio_segment = load_audio_segment(raw_audio_file, start, end)
     vocal_audio_segment = load_audio_segment(vocal_audio_file, start, end)
-    
+
     # -------------------------
     # 1. transcribe raw audio
     # -------------------------
     transcribe_start_time = time.time()
     rprint("[bold green]Note: You will see Progress if working correctly ↓[/bold green]")
-    result = model.transcribe(raw_audio_segment, batch_size=batch_size, print_progress=True)
+
+    if whisper_language == "ja":
+        from faster_whisper import WhisperModel as FwModel
+
+        vad_params = select_vad_parameters(vocal_audio_file)
+        rms_dbfs = vad_params.pop("_rms_dbfs", None)
+        rprint(
+            f"[cyan]🎤 VAD:[/cyan] RMS={rms_dbfs:.1f} dBFS, Silero threshold={vad_params['threshold']}"
+        )
+
+        asr_temperatures = load_key("whisper.temperatures") or [0]
+        temperature = asr_temperatures[0] if isinstance(asr_temperatures, list) else asr_temperatures
+        asr_initial_prompt = load_key("whisper.initial_prompt") or ""
+        asr_no_speech_threshold = load_key("whisper.no_speech_threshold")
+        asr_log_prob_threshold = load_key("whisper.log_prob_threshold")
+        asr_compression_ratio_threshold = load_key("whisper.compression_ratio_threshold")
+
+        fw_model = FwModel(model_name, device=device, compute_type=compute_type, download_root=MODEL_DIR)
+        fw_segments, fw_info = fw_model.transcribe(
+            raw_audio_segment,
+            language=whisper_language,
+            beam_size=load_key("whisper.beam_size") or 5,
+            best_of=load_key("whisper.best_of") or 5,
+            patience=load_key("whisper.patience") or 1.0,
+            word_timestamps=False,
+            vad_filter=True,
+            vad_parameters=vad_params,
+            initial_prompt=asr_initial_prompt,
+            temperature=temperature,
+            no_speech_threshold=asr_no_speech_threshold,
+            log_prob_threshold=asr_log_prob_threshold,
+            compression_ratio_threshold=asr_compression_ratio_threshold,
+        )
+
+        result = {
+            "segments": [
+                {"start": seg.start, "end": seg.end, "text": seg.text.strip()}
+                for seg in fw_segments
+            ],
+            "language": fw_info.language if hasattr(fw_info, "language") else whisper_language,
+        }
+
+        del fw_model
+        torch.cuda.empty_cache()
+    else:
+        vad_params = select_vad_parameters(vocal_audio_file)
+        rms_dbfs = vad_params.pop("_rms_dbfs", None)
+        vad_onset = load_key("whisper.vad_onset") or vad_params["threshold"]
+        vad_offset = load_key("whisper.vad_offset") or vad_params["threshold"]
+        vad_options = {
+            "vad_onset": vad_onset,
+            "vad_offset": vad_offset,
+            "min_duration_on": min(0.05, vad_params["min_speech_duration_ms"] / 1000.0),
+            "min_duration_off": min(0.05, vad_params["min_silence_duration_ms"] / 1000.0),
+        }
+        rprint(
+            f"[cyan]🎤 VAD:[/cyan] RMS={rms_dbfs:.1f} dBFS, onset/offset={vad_options['vad_onset']}, min_on/off={vad_options['min_duration_on']:.2f}s"
+        )
+        asr_temperatures = load_key("whisper.temperatures") or [0]
+        asr_initial_prompt = load_key("whisper.initial_prompt") or ""
+        asr_no_speech_threshold = load_key("whisper.no_speech_threshold")
+        asr_log_prob_threshold = load_key("whisper.log_prob_threshold")
+        asr_compression_ratio_threshold = load_key("whisper.compression_ratio_threshold")
+        asr_options = {
+            "temperatures": asr_temperatures,
+            "initial_prompt": asr_initial_prompt,
+            "no_speech_threshold": asr_no_speech_threshold,
+            "log_prob_threshold": asr_log_prob_threshold,
+            "compression_ratio_threshold": asr_compression_ratio_threshold,
+        }
+        rprint("[bold yellow] You can ignore warning of `Model was trained with torch 1.10.0+cu102, yours is 2.0.0+cu118...`[/bold yellow]")
+        model = whisperx.load_model(
+            model_name,
+            device,
+            compute_type=compute_type,
+            language=whisper_language,
+            vad_options=vad_options,
+            asr_options=asr_options,
+            download_root=MODEL_DIR,
+        )
+
+        result = model.transcribe(raw_audio_segment, batch_size=batch_size, print_progress=True)
+
+        # Free GPU resources
+        del model
+        torch.cuda.empty_cache()
+
     transcribe_time = time.time() - transcribe_start_time
     rprint(f"[cyan]⏱️ time transcribe:[/cyan] {transcribe_time:.2f}s")
-
-    # Free GPU resources
-    del model
-    torch.cuda.empty_cache()
 
     # Save language
     update_key("whisper.language", result['language'])
@@ -152,6 +236,9 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end):
     result = whisperx.align(result["segments"], model_a, metadata, vocal_audio_segment, device, return_char_alignments=False)
     align_time = time.time() - align_start_time
     rprint(f"[cyan]⏱️ time align:[/cyan] {align_time:.2f}s")
+
+    # Speaker diarization (optional)
+    result = run_speaker_diarization(result, raw_audio_segment, device)
 
     # Free GPU resources again
     torch.cuda.empty_cache()

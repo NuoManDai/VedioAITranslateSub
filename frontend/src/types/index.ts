@@ -149,6 +149,12 @@ export interface WhisperConfig {
   whisperXModel: string;
   whisperX302ApiKey?: string;
   elevenlabsApiKey?: string;
+  useSegmentMode?: boolean;  // 使用Whisper原生分句而非逐字输出
+}
+
+export interface SubtitleConfig {
+  maxLength: number;  // 每行字幕最大字符数
+  targetMultiplier: number;  // 译文长度权重倍数
 }
 
 export interface Configuration {
@@ -161,6 +167,8 @@ export interface Configuration {
   timeGapThreshold?: number;  // 时间间隔切分阈值（秒），日语推荐1.0，为空则不启用
   demucs: boolean;
   burnSubtitles: boolean;
+  cjkSplit?: boolean;  // CJK 模式：使用 LLM 断句切分字幕
+  subtitle?: SubtitleConfig;  // 字幕显示设置
   whisper: WhisperConfig;
   ttsMethod: string;
   // OpenAI TTS
@@ -310,11 +318,20 @@ export const TTS_METHODS = [
 
 export type TTSMethod = typeof TTS_METHODS[number]['value'];
 
-// Whisper methods - values must match core code whisper.runtime values: local, cloud, elevenlabs
+// Whisper methods - values must match core code whisper.runtime values: whisper, whisperx_local, cloud, elevenlabs
 export const WHISPER_METHODS = [
-  { value: 'local', label: 'WhisperX Local' },
+  { value: 'whisper', label: 'Faster-Whisper Native (Recommended)' },
+  { value: 'whisperx_local', label: 'WhisperX (VAD + Align)' },
   { value: 'cloud', label: 'WhisperX Cloud (302.ai)' },
   { value: 'elevenlabs', label: 'ElevenLabs' },
 ] as const;
 
 export type WhisperMethod = typeof WHISPER_METHODS[number]['value'];
+
+// Whisper models for local mode
+export const WHISPER_MODELS = [
+  { value: 'large-v3', label: 'large-v3 (Best Quality)' },
+  { value: 'medium', label: 'medium (More Punctuation)' },
+] as const;
+
+export type WhisperModel = typeof WHISPER_MODELS[number]['value'];

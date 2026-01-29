@@ -9,6 +9,7 @@ from .config import (
     ConfigurationUpdate, 
     ApiConfig, 
     WhisperConfig,
+    SubtitleConfig,
     ApiValidateRequest,
     ApiValidateResponse
 )
@@ -41,6 +42,7 @@ __all__ = [
     'ConfigurationUpdate',
     'ApiConfig',
     'WhisperConfig',
+    'SubtitleConfig',
     'ApiValidateRequest',
     'ApiValidateResponse',
     # New models

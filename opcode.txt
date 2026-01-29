@@ -1,0 +1,1 @@
+$env:HTTPS_PROXY = "http://127.0.0.1:10809"; $env:NO_PROXY = "127.0.0.1,localhost,192.168.31.133"; opencode web --hostname 0.0.0.0 --port 4096

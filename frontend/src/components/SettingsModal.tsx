@@ -45,13 +45,9 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
       const currentTtsMethod = config.ttsMethod || 'edge_tts'
       setWhisperMethod(currentWhisperMethod as WhisperMethod)
       setTtsMethod(currentTtsMethod as TTSMethodType)
-      // 计算正确的分句阈值：如果配置中有值则用配置值，否则根据语言使用默认值
-      // 但如果当前语言是日语且配置值是20（英语默认值），则修正为12
+      // 计算正确的分句阈值：如果配置中有值则用配置值，否则使用默认值20
       const sourceLanguage = config.sourceLanguage || 'en'
-      let maxSplitLength = config.maxSplitLength
-      if (!maxSplitLength || (sourceLanguage === 'ja' && maxSplitLength === 20)) {
-        maxSplitLength = getDefaultMaxSplitLength(sourceLanguage)
-      }
+      const maxSplitLength = config.maxSplitLength || getDefaultMaxSplitLength()
       
       form.setFieldsValue({
         apiKey: config.api?.key || '',
@@ -62,10 +58,12 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         sourceLanguage: sourceLanguage,
         maxSplitLength: maxSplitLength,
         timeGapThreshold: config.timeGapThreshold || undefined,
+        subtitleMaxLength: config.subtitle?.maxLength || 75,
         demucs: config.demucs ?? false,
         burnSubtitles: config.burnSubtitles ?? true,
         ttsMethod: currentTtsMethod,
         whisperMethod: currentWhisperMethod,
+        whisperModel: config.whisper?.whisperXModel || 'large-v3',
         whisperX302ApiKey: config.whisper?.whisperX302ApiKey || '',
         elevenlabsApiKey: config.whisper?.elevenlabsApiKey || '',
         // TTS configurations
@@ -107,14 +105,18 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
         },
         targetLanguage: values.targetLanguage,
         sourceLanguage: values.sourceLanguage,
-        maxSplitLength: values.maxSplitLength || getDefaultMaxSplitLength(values.sourceLanguage || 'en'),
-        timeGapThreshold: values.timeGapThreshold || undefined,
+        maxSplitLength: values.maxSplitLength || getDefaultMaxSplitLength(),
+        timeGapThreshold: values.timeGapThreshold ?? null,  // Use null to explicitly clear
+        subtitle: {
+          maxLength: values.subtitleMaxLength || 75,
+          targetMultiplier: 1.2,  // Keep default value
+        },
         demucs: values.demucs,
         burnSubtitles: values.burnSubtitles,
         ttsMethod: values.ttsMethod,
         whisper: {
           method: values.whisperMethod,
-          whisperXModel: 'large-v2',
+          whisperXModel: values.whisperModel || 'large-v3',
           whisperX302ApiKey: values.whisperX302ApiKey || '',
           elevenlabsApiKey: values.elevenlabsApiKey || '',
         },
@@ -182,11 +184,9 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     }
   }
 
-  // 语言切换时重置分词数量
-  const handleSourceLanguageChange = (language: string) => {
-    form.setFieldsValue({
-      maxSplitLength: getDefaultMaxSplitLength(language)
-    })
+  // 语言切换时不再重置分词数量，因为已统一默认值
+  const handleSourceLanguageChange = (_language: string) => {
+    // 保留回调以便将来可能的扩展
   }
 
   const tabItems = [

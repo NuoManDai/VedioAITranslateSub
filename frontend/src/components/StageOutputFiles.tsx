@@ -55,15 +55,69 @@ function FileIcon({ type }: { type: string }) {
 
 // JSON 语法高亮渲染组件
 function JsonHighlight({ content }: { content: string }) {
-  // 简单的 JSON 语法高亮
-  const highlightJson = (json: string): React.ReactNode[] => {
-    const lines = json.split('\n')
+  // 解析并格式化 JSON，展开长字符串
+  const formatJsonForDisplay = (jsonStr: string): string => {
+    try {
+      const obj = JSON.parse(jsonStr)
+      return formatJsonValue(obj, 0)
+    } catch {
+      return jsonStr
+    }
+  }
+
+  // 递归格式化 JSON 值
+  const formatJsonValue = (value: unknown, indent: number): string => {
+    const spaces = '  '.repeat(indent)
+    const nextSpaces = '  '.repeat(indent + 1)
+
+    if (value === null) return 'null'
+    if (typeof value === 'boolean') return String(value)
+    if (typeof value === 'number') return String(value)
+    
+    if (typeof value === 'string') {
+      // 如果字符串包含换行，展示为多行格式
+      if (value.includes('\n') || value.length > 100) {
+        const lines = value.split('\n')
+        const formatted = lines.map(line => `${nextSpaces}${line}`).join('\n')
+        return `"""\n${formatted}\n${spaces}"""`
+      }
+      return JSON.stringify(value)
+    }
+    
+    if (Array.isArray(value)) {
+      if (value.length === 0) return '[]'
+      const items = value.map(item => `${nextSpaces}${formatJsonValue(item, indent + 1)}`)
+      return `[\n${items.join(',\n')}\n${spaces}]`
+    }
+    
+    if (typeof value === 'object') {
+      const entries = Object.entries(value as Record<string, unknown>)
+      if (entries.length === 0) return '{}'
+      const items = entries.map(([k, v]) => `${nextSpaces}"${k}": ${formatJsonValue(v, indent + 1)}`)
+      return `{\n${items.join(',\n')}\n${spaces}}`
+    }
+    
+    return String(value)
+  }
+
+  // 简单的语法高亮
+  const highlightJson = (text: string): React.ReactNode[] => {
+    const lines = text.split('\n')
     return lines.map((line, i) => {
+      // 多行字符串内容（在 """ 之间的行）
+      if (!line.includes('"') && !line.includes(':') && !line.includes('{') && !line.includes('[')) {
+        return (
+          <div key={i} className="hover:bg-gray-100 text-green-700 whitespace-pre-wrap">{line}</div>
+        )
+      }
+      
       // 高亮处理
-      const highlighted = line
+      let highlighted = line
+        // 多行字符串标记
+        .replace(/"""/g, '<span class="text-gray-400">"""</span>')
         // 字符串键
         .replace(/"([^"]+)":/g, '<span class="text-purple-600">"$1"</span>:')
-        // 字符串值
+        // 字符串值（短字符串）
         .replace(/: "([^"]*)"/g, ': <span class="text-green-600">"$1"</span>')
         // 数字
         .replace(/: (\d+\.?\d*)/g, ': <span class="text-blue-600">$1</span>')
@@ -71,14 +125,16 @@ function JsonHighlight({ content }: { content: string }) {
         .replace(/: (true|false|null)/g, ': <span class="text-orange-600">$1</span>')
       
       return (
-        <div key={i} className="hover:bg-gray-100" dangerouslySetInnerHTML={{ __html: highlighted }} />
+        <div key={i} className="hover:bg-gray-100 whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: highlighted }} />
       )
     })
   }
 
+  const formattedContent = formatJsonForDisplay(content)
+
   return (
     <div className="font-mono text-xs leading-relaxed">
-      {highlightJson(content)}
+      {highlightJson(formattedContent)}
     </div>
   )
 }

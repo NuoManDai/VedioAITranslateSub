@@ -4,6 +4,7 @@ import math
 from core.prompts import get_split_prompt
 from core.spacy_utils.load_nlp_model import init_nlp
 from core.utils import *
+from core.utils.config_utils import is_cancelled, check_cancelled, CancelledError
 from rich.console import Console
 from rich.table import Table
 from core.utils.models import _3_1_SPLIT_BY_NLP, _3_2_SPLIT_BY_MEANING
@@ -47,6 +48,9 @@ def find_split_positions(original, modified):
 
 def split_sentence(sentence, num_parts, word_limit=20, index=-1, retry_attempt=0):
     """Split a long sentence using GPT and return the result as a string."""
+    # Check for cancellation before making API call
+    check_cancelled()
+    
     split_prompt = get_split_prompt(sentence, num_parts, word_limit)
     def valid_split(response_data):
         choice = response_data["choice"]
@@ -87,6 +91,11 @@ def parallel_split_sentences(sentences, max_length, max_workers, nlp, retry_atte
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         for index, sentence in enumerate(sentences):
+            # Check cancellation before submitting new tasks
+            if is_cancelled():
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise CancelledError("Processing was cancelled by user")
+            
             # Use tokenizer to split the sentence
             tokens = tokenize_sentence(sentence, nlp)
             # print("Tokenization result:", tokens)
@@ -98,11 +107,22 @@ def parallel_split_sentences(sentences, max_length, max_workers, nlp, retry_atte
                 new_sentences[index] = [sentence]
 
         for future, index, num_parts, sentence in futures:
-            split_result = future.result()
-            if split_result:
-                split_lines = split_result.strip().split('\n')
-                new_sentences[index] = [line.strip() for line in split_lines]
-            else:
+            # Check cancellation before waiting for results
+            if is_cancelled():
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise CancelledError("Processing was cancelled by user")
+            
+            try:
+                split_result = future.result()
+                if split_result:
+                    split_lines = split_result.strip().split('\n')
+                    new_sentences[index] = [line.strip() for line in split_lines]
+                else:
+                    new_sentences[index] = [sentence]
+            except CancelledError:
+                raise
+            except Exception as e:
+                # Handle other exceptions but keep the original sentence
                 new_sentences[index] = [sentence]
 
     return [sentence for sublist in new_sentences for sentence in sublist]

@@ -1,7 +1,7 @@
 /**
  * Home Page - Main application interface
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, Row, Col, message, Modal, Typography } from 'antd'
 import { CloudUploadOutlined, YoutubeOutlined, PlayCircleOutlined, RocketOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -20,6 +20,7 @@ export default function Home() {
   const [video, setVideo] = useState<Video | null>(null)
   const [status, setStatus] = useState<ProcessingStatus | null>(null)
   const [_loading, setLoading] = useState(true)
+  const recoveryPromptShownRef = useRef(false)  // 防止重复弹窗
 
   useEffect(() => {
     loadInitialState()
@@ -35,8 +36,9 @@ export default function Home() {
       setVideo(currentVideo)
       setStatus(processingStatus)
       
-      // Check for unfinished task
-      if (processingStatus?.hasUnfinishedTask) {
+      // Check for unfinished task (防止 StrictMode 下重复弹窗)
+      if (processingStatus?.hasUnfinishedTask && !recoveryPromptShownRef.current) {
+        recoveryPromptShownRef.current = true
         showRecoveryPrompt()
       }
     } catch (error) {

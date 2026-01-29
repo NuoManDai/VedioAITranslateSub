@@ -20,6 +20,8 @@
     "Target Lang": "Целевой язык",
     "Input any language in natural language, as long as llm can understand": "Введите любой язык на естественном языке, главное чтобы LLM мог понять",
     "Vocal separation enhance": "Улучшение отделения голоса",
+    "Whisper Model": "Модель Whisper",
+    "whisperModelTooltip": "Выберите модель Whisper: large-v3 имеет лучшую точность, medium выводит больше знаков пунктуации (лучше для разбиения на предложения).",
     "Burn-in Subtitles": "Встроить субтитры",
     "Whether to burn subtitles into the video, will increase processing time": "Встраивать ли субтитры в видео, это увеличит время обработки",
     "Video Resolution": "Разрешение видео",
