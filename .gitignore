@@ -158,6 +158,7 @@ cython_debug/
 /output/
 /history/
 _model_cache/
+speaker_samples/
 
 batch/input/
 batch/output/
