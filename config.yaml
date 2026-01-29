@@ -11,7 +11,7 @@ display_language: "zh-CN"
 
 # API settings
 api:
-  key: 'sk-mkyntoyrmitryiavlfeqmlthwufgmyehqxkzdzumirtoqrzi'
+  key: ''
   base_url: 'https://api.siliconflow.cn'
   model: 'deepseek-ai/DeepSeek-V3.2'
   llm_support_json: true
@@ -25,31 +25,105 @@ target_language: '简体中文'
 demucs: true
 
 whisper:
-  # ["large-v3", "large-v3-turbo"]. Note: for zh model will force to use Belle/large-v3
+  # ["large-v3", "large-v3-turbo", "medium"]. Note: for zh model will force to use Belle/large-v3
+  # large-v3 has highest accuracy, medium outputs more punctuation
   model: 'large-v3'
   # Whisper specified recognition language ISO 639-1
   language: 'ja'
-  detected_language: 'en'
-  # Whisper running mode ["local", "cloud", "elevenlabs"]. Specifies where to run, cloud uses 302.ai API
-  runtime: 'local'
+  detected_language: 'ja'
+  # Whisper running mode:
+  # - "whisper": Native Faster-Whisper (recommended, like PotPlayer, best accuracy)
+  # - "whisperx_local" / "local": WhisperX with pyannote VAD (legacy, may miss content)
+  # - "cloud": WhisperX Cloud via 302.ai API
+  # - "elevenlabs": ElevenLabs ASR API
+  runtime: 'whisperx_local'
   # 302.ai API key
   whisperX_302_api_key: 'your_302_api_key'
   # ElevenLabs API key (experimental)
   elevenlabs_api_key: ''
 
-# Whether to burn subtitles into the video
-  method: local
-  whisper_x_model: large-v2
+  # ==================== High Accuracy Settings ====================
+  # Beam search size: larger = more accurate but slower (default: 5, max: 15)
+  beam_size: 15
+  # Number of candidates for sampling (default: 5, max: 15)
+  best_of: 15
+  # Patience factor for beam search (default: 1.0, max: 3.0)
+  patience: 3.0
+  # Temperature for sampling, use multiple values for retry on failure
+  temperatures: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  # Initial prompt to guide transcription style and vocabulary
+  # For Japanese anime: guides model to transcribe anime dialogue accurately
+  # Leave empty for auto-generation (will auto-generate for Japanese)
+  initial_prompt: 'これは日本語のアニメ動画です。正確に聞き取って転写してください。句読点を適切に入れてください。'
+
+  # ==================== Filter Thresholds (relax for fast speech) ====================
+  # Compression ratio threshold: higher = allow more repetitive content (default: 2.4, relaxed: 2.8)
+  compression_ratio_threshold: 2.8
+  # Log probability threshold: lower = keep lower confidence transcriptions (default: -1.0, relaxed: -1.5)
+  log_prob_threshold: -1.5
+  # No speech threshold: lower = less likely to filter as silence (default: 0.6, relaxed: 0.4)
+  no_speech_threshold: 0.4
+
+  # ==================== VAD Settings (for WhisperX mode only) ====================
+  # VAD onset threshold: lower = more sensitive to speech start (default: 0.5, short segments: 0.2)
+  vad_onset: 0.1
+  # VAD offset threshold: lower = more sensitive to speech end (default: 0.363, short segments: 0.1)
+  vad_offset: 0.1
+
+  method: whisperx_local
   whisper_x_302_api_key: ''
+
+# Whether to burn subtitles into the video
 burn_subtitles: true
 
 ## ======================== Advanced Settings ======================== ##
 # *HuggingFace mirror endpoint for China users (leave empty to auto-detect)
 hf_mirror: ''
 
+# *HuggingFace token for speaker diarization (pyannote models)
+# Get token from: https://huggingface.co/settings/tokens
+# Also need to accept terms at: https://huggingface.co/pyannote/speaker-diarization-3.1
+hf_token: ''
+
+# *Enable speaker diarization (requires hf_token)
+speaker_diarization: true
+
+# Speaker diarization settings
+diarization:
+  # Minimum number of speakers (leave empty for auto-detection)
+  # Set this if you know there are at least N speakers in the audio
+  # Note: pyannote uses acoustic clustering, so it may not detect more speakers
+  # than acoustically distinguishable voices (e.g., same voice actor = same speaker)
+  min_speakers:
+  # Maximum number of speakers (leave empty for auto-detection)
+  max_speakers:
+  # Enable speaker identification using voice fingerprinting
+  # Requires reference audio samples in speaker_samples/ directory
+  speaker_identification: true
+  # Similarity threshold for speaker matching (0.0-1.0, higher = stricter)
+  identification_threshold: 0.75
+  # Use top-k nearest neighbors from vector DB (if enabled) for more stable matching
+  identification_top_k: 5
+  # Use multiple longest segments per speaker for embedding averaging
+  identification_segment_top_n: 3
+  # Minimum segment duration (seconds) used for embedding
+  identification_segment_min_duration: 1.0
+  # Auto-generate speaker samples from diarization when none exist
+  auto_generate_samples: true
+  samples_dir: 'speaker_samples'
+  samples_per_speaker: 2
+  sample_min_duration: 1.5
+  sample_max_duration: 8.0
+
+# *Speaker vector database for voiceprints
+speaker_vector_db:
+  enabled: true
+  url: 'http://192.168.31.178:6333'
+  collection: 'speaker_embeddings'
+
 # *HTTP proxy for HuggingFace model downloads (e.g. http://127.0.0.1:10809)
 # This proxy will be used to download models from HuggingFace when hf_mirror cannot access large files
-http_proxy: ''
+http_proxy: 'http://127.0.0.1:7890'
 
 # *🔬 h264_nvenc GPU acceleration for ffmpeg, make sure your GPU supports it
 ffmpeg_gpu: false
@@ -66,6 +140,9 @@ subtitle:
   max_length: 75
   # *Translated subtitles are slightly larger than source subtitles, affecting the reference length for subtitle splitting
   target_multiplier: 1.2
+  # *CJK mode: Use LLM sentence breaks for subtitle segmentation (recommended for Japanese/Chinese/Korean)
+  # When enabled, subtitles will be split according to LLM's natural sentence breaks instead of WhisperX timestamps
+  cjk_split: true
 
 # *Summary length, set low to 2k if using local LLM
 summary_length: 8000
@@ -166,19 +243,19 @@ model_dir: './_model_cache'
 
 # Supported upload video formats
 allowed_video_formats:
-  - 'mp4'
-  - 'mov'
-  - 'avi'
-  - 'mkv'
-  - 'flv'
-  - 'wmv'
-  - 'webm'
+- 'mp4'
+- 'mov'
+- 'avi'
+- 'mkv'
+- 'flv'
+- 'wmv'
+- 'webm'
 
 allowed_audio_formats:
-  - 'wav'
-  - 'mp3'
-  - 'flac'
-  - 'm4a'
+- 'wav'
+- 'mp3'
+- 'flac'
+- 'm4a'
 
 # Spacy models
 spacy_model_map:
@@ -193,17 +270,17 @@ spacy_model_map:
 
 # Languages that use space as separator
 language_split_with_space:
-  - 'en'
-  - 'es'
-  - 'fr'
-  - 'de'
-  - 'it'
-  - 'ru'
+- 'en'
+- 'es'
+- 'fr'
+- 'de'
+- 'it'
+- 'ru'
 
 # Languages that do not use space as separator
 language_split_without_space:
-  - 'zh'
-  - 'ja'
+- 'zh'
+- 'ja'
 source_language: ja
 openai_tts_api_key: ''
 openai_voice: alloy
