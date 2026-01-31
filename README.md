@@ -1,6 +1,6 @@
 # Video AI Translate Sub
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
 [![TypeScript](https://img.shields.io/badge/typescript-5.3+-blue.svg)](https://typescriptlang.org)
@@ -11,7 +11,11 @@
 
 ## 📸 界面预览
 
-![界面截图](docs/screenshot.png)
+### 主界面
+![主界面截图](docs/screenshot.png)
+
+### 字幕编辑器
+![字幕编辑器截图](docs/editor.png)
 
 ## 🌟 功能特性
 
