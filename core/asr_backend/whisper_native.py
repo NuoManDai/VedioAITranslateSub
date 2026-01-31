@@ -15,7 +15,7 @@ import torch
 from faster_whisper import WhisperModel
 from rich import print as rprint
 from core.utils import *
-from core.asr_backend._common import select_vad_parameters
+from core.asr_backend._common import get_language_prompt, select_vad_parameters
 
 MODEL_DIR = load_key("model_dir")
 
@@ -201,17 +201,7 @@ def transcribe_audio_native(raw_audio_file, vocal_audio_file, start, end, WHISPE
     # 语言初始提示词（类似 faster-whisper-xxl 自动提示）
     # 用于引导模型输出正确标点和汉字/汉字
     # -------------------------
-    LANGUAGE_PROMPTS = {
-        # 日语：常见汉字和标点格式
-        'ja': 'タイトルは、瓢箪屋のドーナツに賭けます。アニメの字幕です。',
-        # 中文：正式字幕风格
-        'zh': '这是中文字幕，请使用正确的标点符号。',
-        # 韩语：标准字幕格式
-        'ko': '한국어 자막입니다. 정확한 문장 부호를 사용하세요.',
-        # 英语：清晰标点
-        'en': 'Subtitles for video. Please use proper punctuation.',
-    }
-    initial_prompt = LANGUAGE_PROMPTS.get(whisper_language, None)
+    initial_prompt = get_language_prompt(whisper_language)
     
     if initial_prompt:
         rprint(f"[cyan]📝 Initial prompt:[/cyan] {initial_prompt}")

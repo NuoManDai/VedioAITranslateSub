@@ -1,7 +1,9 @@
 import os
+import re
 import warnings
 import time
 import subprocess
+from datetime import datetime
 import torch
 import whisperx
 import librosa
@@ -11,6 +13,90 @@ from core.asr_backend._common import select_vad_parameters, run_speaker_diarizat
 
 warnings.filterwarnings("ignore")
 MODEL_DIR = load_key("model_dir")
+
+
+def _normalize_prompt_text(text: str) -> str:
+    if not text:
+        return ""
+    normalized = re.sub(r"[\s\.,!?;:\"'\-—_\(\)\[\]{}<>，。！？；：、·…「」『』（）【】《》]", "", text)
+    return normalized.strip()
+
+
+def _filter_prompt_leak(result: dict, initial_prompt: str) -> dict:
+    if not result or not initial_prompt:
+        return result
+    segments = result.get("segments") or []
+    if not segments:
+        return result
+    prompt_norm = _normalize_prompt_text(initial_prompt)
+    if not prompt_norm:
+        return result
+    filtered_segments = []
+    removed_count = 0
+    removed_rows = []
+    for segment in segments:
+        text = segment.get("text", "")
+        text_norm = _normalize_prompt_text(text)
+        if not text_norm:
+            filtered_segments.append(segment)
+            continue
+        if text_norm in prompt_norm or prompt_norm in text_norm:
+            removed_rows.append(
+                {
+                    "timestamp": datetime.now().isoformat(timespec="seconds"),
+                    "start": segment.get("start"),
+                    "end": segment.get("end"),
+                    "text": text,
+                    "normalized_text": text_norm,
+                    "normalized_prompt": prompt_norm,
+                    "reason": "prompt_leak_match",
+                }
+            )
+            removed_count += 1
+            continue
+        filtered_segments.append(segment)
+    if removed_count > 0:
+        rprint(f"[yellow]⚠️ Removed {removed_count} prompt-leak segment(s) from transcription[/yellow]")
+        result["segments"] = filtered_segments
+    _dump_prompt_leak_rows(removed_rows, prompt_norm)
+    return result
+
+
+def _dump_prompt_leak_rows(rows: list, prompt_norm: str) -> None:
+    if load_key("whisper.prompt_leak_log") is False:
+        return
+    log_path = load_key("whisper.prompt_leak_log_path") or os.path.join("output", "log", "prompt_leak_segments.txt")
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    lines = []
+    if not rows:
+        rows = [
+            {
+                "timestamp": datetime.now().isoformat(timespec="seconds"),
+                "start": "",
+                "end": "",
+                "text": "",
+                "normalized_text": "",
+                "normalized_prompt": prompt_norm,
+                "reason": "no_prompt_leak_match",
+            }
+        ]
+    for row in rows:
+        lines.append(
+            " | ".join(
+                [
+                    row["timestamp"],
+                    f"{row.get('start')}",
+                    f"{row.get('end')}",
+                    row.get("text", ""),
+                    row.get("normalized_text", ""),
+                    row.get("normalized_prompt", ""),
+                    row.get("reason", ""),
+                ]
+            )
+            + "\n"
+        )
+    with open(log_path, "a", encoding="utf-8") as file_handle:
+        file_handle.writelines(lines)
 
 
 @except_handler("failed to check hf mirror", default_return=None)
@@ -126,7 +212,7 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end, WHISPER_LANGU
 
         asr_temperatures = load_key("whisper.temperatures") or [0]
         temperature = asr_temperatures[0] if isinstance(asr_temperatures, list) else asr_temperatures
-        asr_initial_prompt = load_key("whisper.initial_prompt") or ""
+        asr_initial_prompt = ""
         asr_no_speech_threshold = load_key("whisper.no_speech_threshold")
         asr_log_prob_threshold = load_key("whisper.log_prob_threshold")
         asr_compression_ratio_threshold = load_key("whisper.compression_ratio_threshold")
@@ -156,6 +242,8 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end, WHISPER_LANGU
             "language": fw_info.language if hasattr(fw_info, "language") else whisper_language,
         }
 
+        result = _filter_prompt_leak(result, asr_initial_prompt)
+
         del fw_model
         torch.cuda.empty_cache()
     else:
@@ -173,7 +261,7 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end, WHISPER_LANGU
             f"[cyan]🎤 VAD:[/cyan] RMS={rms_dbfs:.1f} dBFS, onset/offset={vad_options['vad_onset']}, min_on/off={vad_options['min_duration_on']:.2f}s"
         )
         asr_temperatures = load_key("whisper.temperatures") or [0]
-        asr_initial_prompt = load_key("whisper.initial_prompt") or ""
+        asr_initial_prompt = ""
         asr_no_speech_threshold = load_key("whisper.no_speech_threshold")
         asr_log_prob_threshold = load_key("whisper.log_prob_threshold")
         asr_compression_ratio_threshold = load_key("whisper.compression_ratio_threshold")
@@ -197,6 +285,8 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end, WHISPER_LANGU
 
         result = model.transcribe(raw_audio_segment, batch_size=batch_size, print_progress=True)
 
+        result = _filter_prompt_leak(result, asr_initial_prompt)
+
         # Free GPU resources
         del model
         torch.cuda.empty_cache()
@@ -205,8 +295,9 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end, WHISPER_LANGU
     rprint(f"[cyan]⏱️ time transcribe:[/cyan] {transcribe_time:.2f}s")
 
     # Save language
-    update_key("whisper.language", result['language'])
-    if result['language'] == 'zh' and WHISPER_LANGUAGE != 'zh':
+    detected_language = result.get("language") or whisper_language or WHISPER_LANGUAGE
+    update_key("whisper.language", detected_language)
+    if detected_language == 'zh' and WHISPER_LANGUAGE != 'zh':
         raise ValueError("Please specify the transcription language as zh and try again!")
 
     # -------------------------
@@ -239,6 +330,10 @@ def transcribe_audio(raw_audio_file, vocal_audio_file, start, end, WHISPER_LANGU
 
     # Speaker diarization (optional)
     result = run_speaker_diarization(result, raw_audio_segment, device)
+
+    # Final prompt-leak filter (safety after alignment/diarization)
+    asr_initial_prompt = ""
+    result = _filter_prompt_leak(result, asr_initial_prompt)
 
     # Free GPU resources again
     torch.cuda.empty_cache()

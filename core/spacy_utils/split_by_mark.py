@@ -78,12 +78,41 @@ def split_sentence_by_time_gap(sentence: str, chunks: pd.DataFrame, joiner: str,
     
     return result_segments
 
+
 def split_by_mark(nlp):
     whisper_language = load_key("whisper.language")
     language = load_key("whisper.detected_language") if whisper_language == 'auto' else whisper_language
     joiner = get_joiner(language)
     rprint(f"[blue]🔍 Using {language} language joiner: '{joiner}'[/blue]")
-    chunks = pd.read_excel("output/log/cleaned_chunks.xlsx")
+    segments_path = "output/log/segments.xlsx"
+    chunks_path = "output/log/cleaned_chunks.xlsx"
+
+    def has_punctuation(text_list: list) -> bool:
+        punctuation_marks = {"。", "、", "！", "？", ".", ",", "!", "?", "；", "：", ";", ":"}
+        if not text_list:
+            return False
+        lines_with_punc = 0
+        for item in text_list:
+            if any(mark in item for mark in punctuation_marks):
+                lines_with_punc += 1
+        ratio = lines_with_punc / max(len(text_list), 1)
+        return ratio >= 0.2
+
+    if os.path.exists(segments_path):
+        segments_df = pd.read_excel(segments_path)
+        if "text" not in segments_df.columns:
+            raise ValueError("segments.xlsx missing required column: text")
+        base_sentences = segments_df["text"].astype(str).tolist()
+        use_segments_base = not has_punctuation(base_sentences)
+        if use_segments_base:
+            rprint("[blue]🧩 Using segments.xlsx as sentence base (no punctuation detected)[/blue]")
+        else:
+            rprint("[blue]🧩 segments.xlsx has punctuation, using spaCy split[/blue]")
+    else:
+        chunks = pd.read_excel(chunks_path)
+        base_sentences = chunks["text"].astype(str).tolist()
+        rprint("[yellow]⚠️ segments.xlsx not found, fallback to cleaned_chunks.xlsx[/yellow]")
+        use_segments_base = False
     
     # 从配置读取时间间隔阈值
     try:
@@ -94,100 +123,106 @@ def split_by_mark(nlp):
     if time_gap_threshold and time_gap_threshold > 0:
         rprint(f"[blue]⏱️ Time gap threshold enabled: {time_gap_threshold}s[/blue]")
     
-    # Step 1: 先用 spaCy 根据标点切分
-    chunks.text = chunks.text.apply(lambda x: str(x).strip('"').strip('"').replace('"', '').strip())
-    full_text = joiner.join(chunks.text.to_list())
-    
-    doc = nlp(full_text)
-    assert doc.has_annotation("SENT_START")
+    base_sentences = [
+        str(text).strip('"').strip('"').replace('"', '').strip() for text in base_sentences
+    ]
 
-    # 处理 - 和 ... 的情况
-    spacy_sentences = []
-    current_sentence = []
-    
-    for sent in doc.sents:
-        text = sent.text.strip()
-        
-        if current_sentence and (
-            text.startswith('-') or 
-            text.startswith('...') or
-            current_sentence[-1].endswith('-') or
-            current_sentence[-1].endswith('...')
-        ):
-            current_sentence.append(text)
-        else:
-            if current_sentence:
-                spacy_sentences.append(joiner.join(current_sentence))
-                current_sentence = []
-            current_sentence.append(text)
-    
-    if current_sentence:
-        spacy_sentences.append(joiner.join(current_sentence))
-    
-    rprint(f"[blue]📊 spaCy split into {len(spacy_sentences)} sentences[/blue]")
-    
-    # Step 2: 如果启用了时间切分，对每个 spaCy 句子再检查时间间隔
-    sentences_by_mark = []
-    
-    if time_gap_threshold and time_gap_threshold > 0:
-        # 需要重新加载原始 chunks（带时间信息）
-        chunks_with_time = pd.read_excel("output/log/cleaned_chunks.xlsx")
-        chunks_with_time['duration'] = chunks_with_time['end'] - chunks_with_time['start']
-        chunks_with_time['gap_to_next'] = chunks_with_time['start'].shift(-1) - chunks_with_time['end']
-        
-        # 用一个全局指针追踪当前处理到哪个 chunk
-        chunk_idx = 0
-        total_chunks = len(chunks_with_time)
-        time_split_count = 0
-        
-        for sentence in spacy_sentences:
-            if not sentence.strip():
-                continue
-            
-            # 收集当前句子对应的 chunks 及其时间信息
-            current_segment = []
-            sentence_remaining = sentence
-            
-            while chunk_idx < total_chunks and sentence_remaining:
-                row = chunks_with_time.iloc[chunk_idx]
-                chunk_text = str(row['text']).strip('"').strip('"').replace('"', '').strip()
-                duration = row['duration']
-                gap_to_next = row['gap_to_next'] if pd.notna(row['gap_to_next']) else 0
-                
-                # 检查这个 chunk 是否在剩余句子中
-                if joiner:
-                    check_text = chunk_text
-                    if sentence_remaining.startswith(check_text):
-                        sentence_remaining = sentence_remaining[len(check_text):].lstrip()
-                        current_segment.append(chunk_text)
-                        chunk_idx += 1
-                    else:
-                        break  # 当前 chunk 不匹配，说明句子处理完了
-                else:
-                    # 日语/中文等无空格语言
-                    if sentence_remaining.startswith(chunk_text):
-                        sentence_remaining = sentence_remaining[len(chunk_text):]
-                        current_segment.append(chunk_text)
-                        chunk_idx += 1
-                    else:
-                        break
-                
-                # 检查是否需要在此处切分（还有剩余内容才切）
-                should_split = (duration > time_gap_threshold or gap_to_next > time_gap_threshold)
-                
-                if should_split and sentence_remaining:
-                    sentences_by_mark.append(joiner.join(current_segment))
-                    current_segment = []
-                    time_split_count += 1
-            
-            # 添加当前句子的最后一段
-            if current_segment:
-                sentences_by_mark.append(joiner.join(current_segment))
-        
-        if time_split_count > 0:
-            rprint(f"[blue]⏱️ Time gap made {time_split_count} additional cuts[/blue]")
+    if use_segments_base:
+        sentences_by_mark = [sentence for sentence in base_sentences if sentence.strip()]
+        rprint(f"[blue]📊 Using {len(sentences_by_mark)} segment sentences directly[/blue]")
     else:
-        sentences_by_mark = spacy_sentences
+        # Step 1: 先用 spaCy 根据标点切分
+        full_text = joiner.join(base_sentences)
+        doc = nlp(full_text)
+        assert doc.has_annotation("SENT_START")
+
+        # 处理 - 和 ... 的情况
+        spacy_sentences = []
+        current_sentence = []
+        
+        for sent in doc.sents:
+            text = sent.text.strip()
+            
+            if current_sentence and (
+                text.startswith('-') or 
+                text.startswith('...') or
+                current_sentence[-1].endswith('-') or
+                current_sentence[-1].endswith('...')
+            ):
+                current_sentence.append(text)
+            else:
+                if current_sentence:
+                    spacy_sentences.append(joiner.join(current_sentence))
+                    current_sentence = []
+                current_sentence.append(text)
+        
+        if current_sentence:
+            spacy_sentences.append(joiner.join(current_sentence))
+        
+        rprint(f"[blue]📊 spaCy split into {len(spacy_sentences)} sentences[/blue]")
+        
+        # Step 2: 如果启用了时间切分，对每个 spaCy 句子再检查时间间隔
+        sentences_by_mark = []
+        
+        if time_gap_threshold and time_gap_threshold > 0:
+            # 需要重新加载原始 chunks（带时间信息）
+            chunks_with_time = pd.read_excel(chunks_path)
+            chunks_with_time['duration'] = chunks_with_time['end'] - chunks_with_time['start']
+            chunks_with_time['gap_to_next'] = chunks_with_time['start'].shift(-1) - chunks_with_time['end']
+            
+            # 用一个全局指针追踪当前处理到哪个 chunk
+            chunk_idx = 0
+            total_chunks = len(chunks_with_time)
+            time_split_count = 0
+            
+            for sentence in spacy_sentences:
+                if not sentence.strip():
+                    continue
+                
+                # 收集当前句子对应的 chunks 及其时间信息
+                current_segment = []
+                sentence_remaining = sentence
+                
+                while chunk_idx < total_chunks and sentence_remaining:
+                    row = chunks_with_time.iloc[chunk_idx]
+                    chunk_text = str(row['text']).strip('"').strip('"').replace('"', '').strip()
+                    duration = row['duration']
+                    gap_to_next = row['gap_to_next'] if pd.notna(row['gap_to_next']) else 0
+                    
+                    # 检查这个 chunk 是否在剩余句子中
+                    if joiner:
+                        check_text = chunk_text
+                        if sentence_remaining.startswith(check_text):
+                            sentence_remaining = sentence_remaining[len(check_text):].lstrip()
+                            current_segment.append(chunk_text)
+                            chunk_idx += 1
+                        else:
+                            break  # 当前 chunk 不匹配，说明句子处理完了
+                    else:
+                        # 日语/中文等无空格语言
+                        if sentence_remaining.startswith(chunk_text):
+                            sentence_remaining = sentence_remaining[len(chunk_text):]
+                            current_segment.append(chunk_text)
+                            chunk_idx += 1
+                        else:
+                            break
+                    
+                    # 检查是否需要在此处切分（还有剩余内容才切）
+                    should_split = (duration > time_gap_threshold or gap_to_next > time_gap_threshold)
+                    
+                    if should_split and sentence_remaining:
+                        sentences_by_mark.append(joiner.join(current_segment))
+                        current_segment = []
+                        time_split_count += 1
+                
+                # 添加当前句子的最后一段
+                if current_segment:
+                    sentences_by_mark.append(joiner.join(current_segment))
+            
+            if time_split_count > 0:
+                rprint(f"[blue]⏱️ Time gap made {time_split_count} additional cuts[/blue]")
+        else:
+            sentences_by_mark = spacy_sentences
 
     rprint(f"[blue]📊 Final: {len(sentences_by_mark)} sentences[/blue]")
     

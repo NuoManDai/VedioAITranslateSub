@@ -54,7 +54,11 @@ whisper:
   # Initial prompt to guide transcription style and vocabulary
   # For Japanese anime: guides model to transcribe anime dialogue accurately
   # Leave empty for auto-generation (will auto-generate for Japanese)
-  initial_prompt: 'これは日本語のアニメ動画です。正確に聞き取って転写してください。句読点を適切に入れてください。'
+  initial_prompt: ''
+
+  # Log removed prompt-leak segments to CSV for debugging
+  prompt_leak_log: true
+  prompt_leak_log_path: 'output/log/prompt_leak_segments.txt'
 
   # ==================== Filter Thresholds (relax for fast speech) ====================
   # Compression ratio threshold: higher = allow more repetitive content (default: 2.4, relaxed: 2.8)
@@ -66,10 +70,9 @@ whisper:
 
   # ==================== VAD Settings (for WhisperX mode only) ====================
   # VAD onset threshold: lower = more sensitive to speech start (default: 0.5, short segments: 0.2)
-  vad_onset: 0.1
+  vad_onset: 0.12
   # VAD offset threshold: lower = more sensitive to speech end (default: 0.363, short segments: 0.1)
-  vad_offset: 0.1
-
+  vad_offset: 0.12
   method: whisperx_local
   whisper_x_302_api_key: ''
 

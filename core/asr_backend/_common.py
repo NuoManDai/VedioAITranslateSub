@@ -15,6 +15,17 @@ from core.utils import load_key, update_key, except_handler
 MODEL_DIR = load_key("model_dir")
 
 
+def get_language_prompt(language: str) -> str:
+    """Get default language prompt for punctuation guidance."""
+    language_prompts = {
+        "ja": "タイトルは、瓢箪屋のドーナツに賭けます。アニメの字幕です。",
+        "zh": "这是中文字幕，请使用正确的标点符号。",
+        "ko": "한국어 자막입니다. 정확한 문장 부호를 사용하세요.",
+        "en": "Subtitles for video. Please use proper punctuation.",
+    }
+    return language_prompts.get(language, "")
+
+
 def select_vad_parameters(audio_path: str) -> dict:
     """Select VAD parameters based on RMS loudness (dBFS)."""
     try:
