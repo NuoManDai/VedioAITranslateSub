@@ -55,6 +55,7 @@ export interface ProcessingStatus {
   hasUnfinishedTask: boolean;
   canStartSubtitle: boolean;
   canStartDubbing: boolean;
+  subtitleMerged: boolean;  // 字幕是否已合并到视频 (output_sub.mp4)
 }
 
 // Log types
@@ -152,9 +153,29 @@ export interface WhisperConfig {
   useSegmentMode?: boolean;  // 使用Whisper原生分句而非逐字输出
 }
 
+export interface SubtitleStyleConfig {
+  fontSize: number;
+  fontColor: string;
+  bgColor: string;
+  outlineColor: string;
+  outlineWidth: number;
+}
+
+export interface SubtitleLayoutConfig {
+  marginBottom: number;
+  lineSpacing: number;
+}
+
+export interface SubtitleDisplayStyle {
+  translation: SubtitleStyleConfig;
+  original: SubtitleStyleConfig;
+  layout: SubtitleLayoutConfig;
+}
+
 export interface SubtitleConfig {
   maxLength: number;  // 每行字幕最大字符数
   targetMultiplier: number;  // 译文长度权重倍数
+  style?: SubtitleDisplayStyle;  // 字幕显示样式
 }
 
 export interface Configuration {

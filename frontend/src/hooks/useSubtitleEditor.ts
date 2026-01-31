@@ -11,8 +11,12 @@ import {
   backupSubtitles,
   hasSubtitleBackup,
   restoreSubtitles,
+  SubtitleMergeType,
 } from '../services/subtitleApi';
 import { saveDraft, loadDraft, clearDraft, hasDraft } from '../services/indexeddb';
+
+// Track if draft restore message has been shown (module-level to persist across re-renders)
+let hasShownDraftRestoreMessage = false;
 
 interface UseSubtitleEditorReturn {
   // State
@@ -29,13 +33,13 @@ interface UseSubtitleEditorReturn {
   filesInfo: SubtitleDataResponse['files'] | null;
 
   // Actions
-  loadSubtitles: () => Promise<void>;
+  loadSubtitles: (forceRefresh?: boolean) => Promise<void>;
   updateEntry: (index: number, changes: Partial<SubtitleEntry>) => void;
   addEntry: (startTime: number, endTime: number) => void;
   deleteEntry: (index: number) => void;
   saveToServer: () => Promise<boolean>;
   saveDraftLocal: () => Promise<void>;
-  mergeVideo: () => Promise<boolean>;
+  mergeVideo: (subtitleType?: SubtitleMergeType) => Promise<boolean>;
   restoreToOriginal: () => Promise<boolean>;
   setCurrentTime: (time: number) => void;
   setIsPlaying: (playing: boolean) => void;
@@ -62,42 +66,70 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
   const seekCallbackRef = useRef<((time: number) => void) | null>(null);
 
   // Load subtitles from API or draft
-  const loadSubtitles = useCallback(async () => {
+  // forceRefresh: skip draft and load directly from server
+  const loadSubtitles = useCallback(async (forceRefresh = false) => {
     setIsLoading(true);
     try {
       // Always check backup status first
       const backupStatus = await hasSubtitleBackup();
       setHasBackup(backupStatus.hasBackup);
 
-      // Check for draft first
-      const hasDraftData = await hasDraft();
-      if (hasDraftData) {
-        const draftEntries = await loadDraft();
-        if (draftEntries && draftEntries.length > 0) {
-          // Ask user if they want to restore draft
-          setEntries(draftEntries);
-          setIsDirty(true);
-          message.info('已恢复上次编辑的草稿');
-          
-          // Still fetch file info from server
-          const data = await getSubtitles();
-          setFilesInfo(data.files);
+      // Always fetch server data first to compare
+      const data = await getSubtitles();
+      setFilesInfo(data.files);
 
-          // Create backup if not exists (use server data for backup)
-          if (!backupStatus.hasBackup && data.entries.length > 0) {
-            await backupSubtitles();
-            setHasBackup(true);
+      // Check for draft (unless force refresh)
+      if (!forceRefresh) {
+        const hasDraftData = await hasDraft();
+        if (hasDraftData) {
+          const draftEntries = await loadDraft();
+          if (draftEntries && draftEntries.length > 0) {
+            // Compare draft with server data
+            // If server has different count or content, it's likely regenerated
+            const serverCount = data.entries.length;
+            const draftCount = draftEntries.length;
+            
+            // Check if server data is different (regenerated)
+            const isServerDifferent = serverCount !== draftCount || 
+              (serverCount > 0 && draftCount > 0 && 
+                data.entries[0].text !== draftEntries[0].text);
+            
+            if (isServerDifferent) {
+              // Server has new data, clear draft and use server data
+              await clearDraft();
+              setEntries(data.entries);
+              setIsDirty(false);
+              // Reset the message flag when new subtitles are detected
+              hasShownDraftRestoreMessage = false;
+              message.info('检测到新生成的字幕，已加载最新数据');
+            } else {
+              // Draft is valid, restore it
+              setEntries(draftEntries);
+              setIsDirty(true);
+              // Only show the message once
+              if (!hasShownDraftRestoreMessage) {
+                hasShownDraftRestoreMessage = true;
+                message.info('已恢复上次编辑的草稿');
+              }
+            }
+
+            // Create backup if not exists (use server data for backup)
+            if (!backupStatus.hasBackup && data.entries.length > 0) {
+              await backupSubtitles();
+              setHasBackup(true);
+            }
+            
+            setIsLoading(false);
+            return;
           }
-          
-          setIsLoading(false);
-          return;
         }
+      } else {
+        // Force refresh: clear draft
+        await clearDraft();
       }
 
       // Load from server
-      const data = await getSubtitles();
       setEntries(data.entries);
-      setFilesInfo(data.files);
       setIsDirty(false);
 
       // Create backup if not exists
@@ -169,10 +201,10 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
   }, [entries, isDirty]);
 
   // Merge subtitles to video
-  const mergeVideo = useCallback(async (): Promise<boolean> => {
+  const mergeVideo = useCallback(async (subtitleType: SubtitleMergeType = 'dual'): Promise<boolean> => {
     setIsMerging(true);
     try {
-      const result = await mergeSubtitlesToVideo();
+      const result = await mergeSubtitlesToVideo(subtitleType);
       if (result.success) {
         message.success('字幕已合并到视频');
         return true;
@@ -280,4 +312,11 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
     seekTo,
     discardDraft,
   };
+}
+
+/**
+ * Reset the draft restore message flag (call when leaving the editor page)
+ */
+export function resetDraftRestoreMessageFlag(): void {
+  hasShownDraftRestoreMessage = false;
 }

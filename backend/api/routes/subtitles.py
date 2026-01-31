@@ -55,6 +55,14 @@ class SaveSubtitlesResponse(BaseModel):
     entryCount: int
 
 
+class MergeVideoRequest(BaseModel):
+    """Request for merge video operation"""
+
+    subtitleType: Optional[str] = (
+        "dual"  # "dual", "trans_only", "src_only", "trans_src", "src_trans"
+    )
+
+
 class MergeVideoResponse(BaseModel):
     """Response after merging subtitles to video"""
 
@@ -158,15 +166,21 @@ async def save_subtitles(request: SaveSubtitlesRequest):
 
 
 @router.post("/merge-video", response_model=MergeVideoResponse)
-async def merge_video():
+async def merge_video(request: MergeVideoRequest = MergeVideoRequest()):
     """
     Manually trigger merging subtitles to video
 
     This burns the subtitles into the video file.
-    Requires subtitle files (src.srt, trans.srt) to exist.
+
+    subtitleType options:
+    - "dual": Both src.srt and trans.srt (default, dual language overlay)
+    - "trans_only": Only translation subtitles
+    - "src_only": Only source/original subtitles
+    - "trans_src": trans_src.srt (single file with both languages)
+    - "src_trans": src_trans.srt (single file with both languages, reversed order)
     """
     try:
-        result = subtitle_service.merge_subtitles_to_video()
+        result = subtitle_service.merge_subtitles_to_video(request.subtitleType)
 
         return MergeVideoResponse(
             success=result["success"],

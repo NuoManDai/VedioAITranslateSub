@@ -156,6 +156,10 @@ async def get_processing_status():
         )
     )
 
+    # Check if subtitle has been merged into video (output_sub.mp4 exists)
+    output_dir = get_output_dir()
+    subtitle_merged = (output_dir / "output_sub.mp4").exists()
+
     status = ProcessingStatus(
         video=state.current_video.model_dump(by_alias=True)
         if state.current_video
@@ -165,6 +169,7 @@ async def get_processing_status():
         has_unfinished_task=has_unfinished,
         can_start_subtitle=can_start_subtitle,
         can_start_dubbing=can_start_dubbing,
+        subtitle_merged=subtitle_merged,
     )
     return status.model_dump(by_alias=True)
 

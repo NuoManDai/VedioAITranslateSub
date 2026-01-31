@@ -291,11 +291,16 @@ class SubtitleService:
 
     # ========== Merge to Video ==========
 
-    def merge_subtitles_to_video(self) -> dict:
+    def merge_subtitles_to_video(self, subtitle_type: str = "dual") -> dict:
         """
         Manually trigger subtitle merge to video
 
-        This calls the core merge function
+        subtitle_type options:
+        - "dual": Both src.srt and trans.srt (default, dual language overlay)
+        - "trans_only": Only translation subtitles
+        - "src_only": Only source/original subtitles
+        - "trans_src": trans_src.srt (single file with both languages)
+        - "src_trans": src_trans.srt (single file with both languages, reversed order)
         """
         import sys
 
@@ -303,10 +308,28 @@ class SubtitleService:
         if str(project_root) not in sys.path:
             sys.path.insert(0, str(project_root))
 
-        from core._7_sub_into_vid import merge_subtitles_to_video
+        from core._7_sub_into_vid import merge_subtitles_to_video as core_merge
 
         try:
-            merge_subtitles_to_video()
+            # Determine which subtitle files to use based on subtitle_type
+            if subtitle_type == "dual":
+                # Default behavior: use src.srt and trans.srt
+                core_merge()
+            elif subtitle_type == "trans_only":
+                # Only translation: temporarily copy trans.srt to both
+                self._merge_with_single_subtitle("trans.srt", is_translation=True)
+            elif subtitle_type == "src_only":
+                # Only source: temporarily copy src.srt to both
+                self._merge_with_single_subtitle("src.srt", is_translation=False)
+            elif subtitle_type == "trans_src":
+                # Single bilingual file: trans_src.srt
+                self._merge_with_bilingual_file("trans_src.srt")
+            elif subtitle_type == "src_trans":
+                # Single bilingual file: src_trans.srt (reversed order)
+                self._merge_with_bilingual_file("src_trans.srt")
+            else:
+                # Fallback to default
+                core_merge()
 
             output_video = self.output_dir / "output_sub.mp4"
 
@@ -319,18 +342,179 @@ class SubtitleService:
             logger.error(f"Failed to merge subtitles to video: {e}")
             return {"success": False, "error": str(e)}
 
+    def _escape_ffmpeg_path(self, path: str) -> str:
+        """
+        Escape path for FFmpeg subtitles filter.
+
+        FFmpeg subtitles filter has special requirements for Windows paths:
+        - Backslashes must be escaped or use forward slashes instead
+        - Colons must be escaped with backslash (e.g., C\:/path)
+        """
+        # Convert to forward slashes (works on Windows too)
+        escaped = str(path).replace("\\", "/")
+        # Escape colons in drive letter (e.g., D: -> D\:)
+        # FFmpeg uses : as option separator in filter syntax
+        if len(escaped) >= 2 and escaped[1] == ":":
+            escaped = escaped[0] + "\\:" + escaped[2:]
+        return escaped
+
+    def _merge_with_single_subtitle(self, srt_filename: str, is_translation: bool):
+        """Merge video with a single subtitle file (either src or trans only)"""
+        import subprocess
+        import time
+        import cv2
+        from core._1_ytdlp import find_video_files
+        from core.utils import load_key
+        from core._7_sub_into_vid import get_subtitle_style
+
+        video_file = find_video_files()
+        srt_path = self.output_dir / srt_filename
+        output_video = self.output_dir / "output_sub.mp4"
+
+        if not srt_path.exists():
+            raise FileNotFoundError(f"Subtitle file not found: {srt_path}")
+
+        if not load_key("burn_subtitles"):
+            import numpy as np
+
+            # Create placeholder
+            frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            out = cv2.VideoWriter(str(output_video), fourcc, 1, (1920, 1080))
+            out.write(frame)
+            out.release()
+            return
+
+        video = cv2.VideoCapture(video_file)
+        width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        video.release()
+
+        # Get dynamic style from config
+        style = get_subtitle_style()
+        if is_translation:
+            font_size = style["trans_font_size"]
+            font_color = style["trans_font_color"]
+        else:
+            font_size = style["src_font_size"]
+            font_color = style["src_font_color"]
+        margin_v = style["margin_v"]
+
+        # Escape path for FFmpeg subtitles filter
+        escaped_srt_path = self._escape_ffmpeg_path(str(srt_path))
+
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-i",
+            video_file,
+            "-vf",
+            (
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
+                f"subtitles='{escaped_srt_path}':force_style='FontSize={font_size},"
+                f"FontName=Arial,PrimaryColour={font_color},OutlineColour=&H000000,"
+                f"OutlineWidth=1,BorderStyle=1,Alignment=2,MarginV={margin_v}'"
+            ),
+        ]
+
+        if load_key("ffmpeg_gpu"):
+            ffmpeg_cmd.extend(["-c:v", "h264_nvenc"])
+        ffmpeg_cmd.extend(["-y", str(output_video)])
+
+        logger.info(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
+        process = subprocess.Popen(
+            ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            logger.error(f"FFmpeg stderr: {stderr.decode('utf-8', errors='ignore')}")
+            raise RuntimeError(
+                f"FFmpeg execution failed: {stderr.decode('utf-8', errors='ignore')[:500]}"
+            )
+
+    def _merge_with_bilingual_file(self, srt_filename: str):
+        """Merge video with a single bilingual subtitle file"""
+        import subprocess
+        import cv2
+        from core._1_ytdlp import find_video_files
+        from core.utils import load_key
+        from core._7_sub_into_vid import get_subtitle_style
+
+        video_file = find_video_files()
+        srt_path = self.output_dir / srt_filename
+        output_video = self.output_dir / "output_sub.mp4"
+
+        if not srt_path.exists():
+            raise FileNotFoundError(f"Subtitle file not found: {srt_path}")
+
+        if not load_key("burn_subtitles"):
+            import numpy as np
+
+            # Create placeholder
+            frame = np.zeros((1080, 1920, 3), dtype=np.uint8)
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            out = cv2.VideoWriter(str(output_video), fourcc, 1, (1920, 1080))
+            out.write(frame)
+            out.release()
+            return
+
+        video = cv2.VideoCapture(video_file)
+        width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        video.release()
+
+        # Get dynamic style from config
+        style = get_subtitle_style()
+        # For bilingual, use translation font size (larger, as it includes both lines)
+        font_size = style["trans_font_size"]
+        font_color = style["trans_font_color"]
+        margin_v = style["margin_v"]
+
+        # Escape path for FFmpeg subtitles filter
+        escaped_srt_path = self._escape_ffmpeg_path(str(srt_path))
+
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-i",
+            video_file,
+            "-vf",
+            (
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
+                f"subtitles='{escaped_srt_path}':force_style='FontSize={font_size},"
+                f"FontName=Arial,PrimaryColour={font_color},OutlineColour=&H000000,"
+                f"OutlineWidth=1,BorderStyle=1,Alignment=2,MarginV={margin_v}'"
+            ),
+        ]
+
+        if load_key("ffmpeg_gpu"):
+            ffmpeg_cmd.extend(["-c:v", "h264_nvenc"])
+        ffmpeg_cmd.extend(["-y", str(output_video)])
+
+        logger.info(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
+        process = subprocess.Popen(
+            ffmpeg_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            logger.error(f"FFmpeg stderr: {stderr.decode('utf-8', errors='ignore')}")
+            raise RuntimeError(
+                f"FFmpeg execution failed: {stderr.decode('utf-8', errors='ignore')[:500]}"
+            )
+
     # ========== Audio Stream ==========
 
     def get_audio_path(self) -> Optional[Path]:
         """Get path to audio file for waveform generation"""
-        # Prefer vocal-separated audio, fallback to raw
-        vocal_audio = self.output_dir / "audio" / "vocal.mp3"
+        # Prefer raw/original audio for waveform display
+        # This shows the complete audio track including background music
         raw_audio = self.output_dir / "audio" / "raw.mp3"
+        vocal_audio = self.output_dir / "audio" / "vocal.mp3"
 
-        if vocal_audio.exists():
-            return vocal_audio
-        elif raw_audio.exists():
+        if raw_audio.exists():
             return raw_audio
+        elif vocal_audio.exists():
+            return vocal_audio
 
         return None
 

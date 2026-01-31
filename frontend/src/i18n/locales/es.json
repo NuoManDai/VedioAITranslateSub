@@ -124,5 +124,6 @@
     "confirmRestartSubtitleDesc": "Esto eliminará todos los archivos intermedios del procesamiento de subtítulos. Se conservarán el video y audio originales.",
     "confirmRestartDubbing": "¿Reiniciar el procesamiento de doblaje?",
     "confirmRestartDubbingDesc": "Esto eliminará todos los archivos intermedios del procesamiento de doblaje. Se conservarán el video y los subtítulos originales.",
-    "cleanupSuccess": "Limpieza completada, listo para reiniciar el procesamiento"
+    "cleanupSuccess": "Limpieza completada, listo para reiniciar el procesamiento",
+    "subtitleMergedSuccess": "Los subtítulos se han fusionado con éxito en el video"
 }

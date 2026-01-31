@@ -4,6 +4,7 @@
 export { default as VideoSync } from './VideoSync';
 export { default as SubtitleList } from './SubtitleList';
 export { default as Timeline } from './Timeline';
+export { default as SubtitleStyleModal } from './SubtitleStyleModal';
 
 export type { VideoSyncRef } from './VideoSync';
 export type { TimelineRef } from './Timeline';

@@ -2,6 +2,7 @@
 Configuration data model
 映射 config.yaml 配置文件
 """
+
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional, Literal
 import yaml
@@ -10,88 +11,149 @@ from pathlib import Path
 
 def to_camel(string: str) -> str:
     """Convert snake_case to camelCase"""
-    components = string.split('_')
-    return components[0] + ''.join(x.title() for x in components[1:])
+    components = string.split("_")
+    return components[0] + "".join(x.title() for x in components[1:])
 
 
 class ApiConfig(BaseModel):
     """API 配置"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-    
-    key: str = Field(default='', description="API 密钥")
-    base_url: str = Field(default='https://api.openai.com', description="API 基础 URL")
-    model: str = Field(default='gpt-4o-mini', description="模型名称")
+
+    key: str = Field(default="", description="API 密钥")
+    base_url: str = Field(default="https://api.openai.com", description="API 基础 URL")
+    model: str = Field(default="gpt-4o-mini", description="模型名称")
     llm_support_json: bool = Field(default=True, description="是否支持 JSON 模式")
 
 
 class WhisperConfig(BaseModel):
     """Whisper 配置"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-    
-    method: str = Field(default='whisperX_local', description="Whisper 方法")
-    whisperX_model: str = Field(default='large-v2', description="WhisperX 模型")
+
+    method: str = Field(default="whisperX_local", description="Whisper 方法")
+    whisperX_model: str = Field(default="large-v2", description="WhisperX 模型")
     whisperX_302_api_key: Optional[str] = Field(None, description="302.ai API 密钥")
     elevenlabs_api_key: Optional[str] = Field(None, description="ElevenLabs API 密钥")
-    use_segment_mode: bool = Field(default=False, description="使用Whisper原生分句而非逐字输出")
+    use_segment_mode: bool = Field(
+        default=False, description="使用Whisper原生分句而非逐字输出"
+    )
+
+
+class SubtitleStyleConfig(BaseModel):
+    """单个字幕样式配置"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    font_size: int = Field(default=18, description="字体大小")
+    font_color: str = Field(default="#FFFFFF", description="字体颜色")
+    bg_color: str = Field(default="rgba(0,0,0,0.75)", description="背景颜色")
+    outline_color: str = Field(default="#000000", description="描边颜色")
+    outline_width: int = Field(default=1, description="描边宽度")
+
+
+class SubtitleLayoutConfig(BaseModel):
+    """字幕布局配置"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    margin_bottom: int = Field(default=40, description="底部边距")
+    line_spacing: int = Field(default=8, description="行间距")
+
+
+class SubtitleDisplayStyle(BaseModel):
+    """字幕显示样式配置"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    translation: Optional[SubtitleStyleConfig] = Field(
+        default=None, description="译文样式"
+    )
+    original: Optional[SubtitleStyleConfig] = Field(
+        default=None, description="原文样式"
+    )
+    layout: Optional[SubtitleLayoutConfig] = Field(default=None, description="布局设置")
 
 
 class SubtitleConfig(BaseModel):
     """字幕显示配置"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-    
+
     max_length: int = Field(default=75, description="每行字幕最大字符数")
     target_multiplier: float = Field(default=1.2, description="译文长度权重倍数")
+    style: Optional[SubtitleDisplayStyle] = Field(
+        default=None, description="字幕样式配置"
+    )
 
 
 class Configuration(BaseModel):
     """系统配置模型"""
+
     # 显示语言
-    display_language: str = Field(default='简体中文', description="界面显示语言")
-    
+    display_language: str = Field(default="简体中文", description="界面显示语言")
+
     # API 配置
     api: ApiConfig = Field(default_factory=ApiConfig)
-    
+
     # 视频处理设置
-    resolution: str = Field(default='1080', description="视频分辨率")
-    
+    resolution: str = Field(default="1080", description="视频分辨率")
+
     # 字幕设置
-    source_language: str = Field(default='en', description="源语言")
-    target_language: str = Field(default='简体中文', description="目标语言")
-    max_split_length: int = Field(default=20, description="GPT分句阈值(token数)，默认20")
-    time_gap_threshold: Optional[float] = Field(default=None, description="时间间隔切分阈值(秒)，日语推荐1.0，为空则不启用")
+    source_language: str = Field(default="en", description="源语言")
+    target_language: str = Field(default="简体中文", description="目标语言")
+    max_split_length: int = Field(
+        default=20, description="GPT分句阈值(token数)，默认20"
+    )
+    time_gap_threshold: Optional[float] = Field(
+        default=None, description="时间间隔切分阈值(秒)，日语推荐1.0，为空则不启用"
+    )
     demucs: bool = Field(default=False, description="是否启用人声分离")
     burn_subtitles: bool = Field(default=True, description="是否烧录字幕")
-    cjk_split: bool = Field(default=False, description="CJK模式：使用LLM断句切分字幕（推荐日语/中文/韩语使用）")
-    
+    cjk_split: bool = Field(
+        default=False,
+        description="CJK模式：使用LLM断句切分字幕（推荐日语/中文/韩语使用）",
+    )
+
     # 字幕显示设置
     subtitle: SubtitleConfig = Field(default_factory=SubtitleConfig)
-    
+
     # Whisper 设置
     whisper: WhisperConfig = Field(default_factory=WhisperConfig)
-    
+
     # TTS 设置
-    tts_method: str = Field(default='edge_tts', description="TTS 方法")
+    tts_method: str = Field(default="edge_tts", description="TTS 方法")
     # OpenAI TTS
     openai_tts_api_key: Optional[str] = Field(None, description="OpenAI TTS API Key")
-    openai_voice: str = Field(default='alloy', description="OpenAI 语音")
+    openai_voice: str = Field(default="alloy", description="OpenAI 语音")
     # Azure TTS
     azure_key: Optional[str] = Field(None, description="Azure Key")
     azure_region: Optional[str] = Field(None, description="Azure Region")
-    azure_voice: str = Field(default='zh-CN-XiaoxiaoNeural', description="Azure 语音")
+    azure_voice: str = Field(default="zh-CN-XiaoxiaoNeural", description="Azure 语音")
     # Fish TTS
     fish_tts_api_key: Optional[str] = Field(None, description="Fish TTS API Key")
-    fish_tts_character: str = Field(default='AD学姐', description="Fish TTS 角色")
+    fish_tts_character: str = Field(default="AD学姐", description="Fish TTS 角色")
     # SiliconFlow Fish TTS
-    sf_fish_tts_api_key: Optional[str] = Field(None, description="SiliconFlow Fish TTS API Key")
-    sf_fish_tts_mode: str = Field(default='preset', description="SiliconFlow Fish TTS 模式")
-    sf_fish_tts_voice: str = Field(default='anna', description="SiliconFlow Fish TTS 语音")
+    sf_fish_tts_api_key: Optional[str] = Field(
+        None, description="SiliconFlow Fish TTS API Key"
+    )
+    sf_fish_tts_mode: str = Field(
+        default="preset", description="SiliconFlow Fish TTS 模式"
+    )
+    sf_fish_tts_voice: str = Field(
+        default="anna", description="SiliconFlow Fish TTS 语音"
+    )
     # GPT-SoVITS
-    sovits_character: str = Field(default='', description="SoVITS 角色")
+    sovits_character: str = Field(default="", description="SoVITS 角色")
     gpt_sovits_refer_mode: int = Field(default=3, description="GPT-SoVITS 参考模式")
     # Edge TTS
-    edge_tts_voice: str = Field(default='zh-CN-XiaoxiaoNeural', description="Edge TTS 语音")
+    edge_tts_voice: str = Field(
+        default="zh-CN-XiaoxiaoNeural", description="Edge TTS 语音"
+    )
     # SiliconFlow CosyVoice2
-    sf_cosyvoice2_api_key: Optional[str] = Field(None, description="SiliconFlow CosyVoice2 API Key")
+    sf_cosyvoice2_api_key: Optional[str] = Field(
+        None, description="SiliconFlow CosyVoice2 API Key"
+    )
     # F5-TTS
     f5tts_api_key: Optional[str] = Field(None, description="F5-TTS 302ai API Key")
     # Custom TTS
@@ -100,25 +162,28 @@ class Configuration(BaseModel):
     custom_tts_model: Optional[str] = Field(None, description="Custom TTS Model")
     # Legacy
     sf_api_key: Optional[str] = Field(None, description="SiliconFlow API Key")
-    
+
     # YouTube cookies
     ytb_cookies_path: Optional[str] = Field(None, description="YouTube Cookies 路径")
-    
+
     # Network proxy
-    http_proxy: Optional[str] = Field(None, description="HTTP 代理地址 (如 http://127.0.0.1:10809)")
+    http_proxy: Optional[str] = Field(
+        None, description="HTTP 代理地址 (如 http://127.0.0.1:10809)"
+    )
     hf_mirror: Optional[str] = Field(None, description="HuggingFace 镜像地址")
 
     model_config = ConfigDict(
         from_attributes=True,
         alias_generator=to_camel,
-        populate_by_name=True  # Allow both snake_case and camelCase
+        populate_by_name=True,  # Allow both snake_case and camelCase
     )
 
 
 class ConfigurationUpdate(BaseModel):
     """配置更新模型，所有字段可选"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-    
+
     display_language: Optional[str] = None
     api: Optional[ApiConfig] = None
     resolution: Optional[str] = None
@@ -168,8 +233,9 @@ class ConfigurationUpdate(BaseModel):
 
 class ApiValidateRequest(BaseModel):
     """API 验证请求模型"""
+
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
-    
+
     key: str = Field(..., description="API 密钥")
     base_url: str = Field(..., description="API 基础 URL")
     model: str = Field(..., description="模型名称")
@@ -177,5 +243,6 @@ class ApiValidateRequest(BaseModel):
 
 class ApiValidateResponse(BaseModel):
     """API 验证响应模型"""
+
     valid: bool = Field(..., description="是否有效")
     message: str = Field(..., description="验证结果消息")

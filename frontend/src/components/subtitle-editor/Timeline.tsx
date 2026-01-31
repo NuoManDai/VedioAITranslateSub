@@ -122,7 +122,8 @@ const Timeline = forwardRef<TimelineRef, TimelineProps>(({
       updateRegions();
     });
 
-    ws.on('audioprocess', () => {
+    // Use timeupdate for more frequent updates (fires ~4x per second)
+    ws.on('timeupdate', () => {
       if (!isSeekingRef.current && wavesurferRef.current) {
         const time = wavesurferRef.current.getCurrentTime();
         onSeek(time);
@@ -244,27 +245,40 @@ const Timeline = forwardRef<TimelineRef, TimelineProps>(({
       ws.play();
     } else if (!isPlaying && ws.isPlaying()) {
       ws.pause();
+      // When playback stops, sync position immediately to match video
+      const duration = ws.getDuration();
+      if (duration > 0) {
+        isSeekingRef.current = true;
+        ws.seekTo(currentTime / duration);
+        setTimeout(() => {
+          isSeekingRef.current = false;
+        }, 50);
+      }
     }
-  }, [isPlaying]);
+  }, [isPlaying, currentTime]);
 
   // Sync current time with video (only when seeking from outside)
   useEffect(() => {
     const ws = wavesurferRef.current;
     if (!ws || isLoadingRef.current) return;
+    
+    // Skip sync during playback to avoid stuttering
+    // The WaveSurfer will sync naturally during playback
+    if (isPlaying) return;
 
     const duration = ws.getDuration();
     if (duration > 0) {
       const currentWsTime = ws.getCurrentTime();
-      // Only sync if difference is significant (>0.5s)
-      if (Math.abs(currentWsTime - currentTime) > 0.5) {
+      // Sync if difference is significant (>0.05s) - tighter threshold for better sync
+      if (Math.abs(currentWsTime - currentTime) > 0.05) {
         isSeekingRef.current = true;
         ws.seekTo(currentTime / duration);
         setTimeout(() => {
           isSeekingRef.current = false;
-        }, 100);
+        }, 50);
       }
     }
-  }, [currentTime]);
+  }, [currentTime, isPlaying]);
 
   // Mouse wheel zoom
   useEffect(() => {

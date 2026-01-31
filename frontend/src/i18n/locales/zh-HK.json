@@ -124,5 +124,6 @@
     "confirmRestartSubtitleDesc": "這將清除所有字幕處理的中間檔案（日誌、翻譯快取、字幕檔案等）。原始影片和音訊將保留。",
     "confirmRestartDubbing": "確認重新開始配音處理？",
     "confirmRestartDubbingDesc": "這將清除所有配音處理的中間檔案（音訊片段、參考音訊等）。原始影片和字幕將保留。",
-    "cleanupSuccess": "清理完成，可以重新開始處理"
+    "cleanupSuccess": "清理完成，可以重新開始處理",
+    "subtitleMergedSuccess": "字幕已成功合併到影片中"
 }

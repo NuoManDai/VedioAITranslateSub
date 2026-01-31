@@ -91,11 +91,19 @@ export async function saveSubtitles(
 }
 
 /**
+ * Subtitle type options for merging video
+ */
+export type SubtitleMergeType = 'dual' | 'trans_only' | 'src_only' | 'trans_src' | 'src_trans';
+
+/**
  * Merge subtitles into video
  */
-export async function mergeSubtitlesToVideo(): Promise<MergeVideoResponse> {
+export async function mergeSubtitlesToVideo(
+  subtitleType: SubtitleMergeType = 'dual'
+): Promise<MergeVideoResponse> {
   return fetchApi<MergeVideoResponse>('/subtitles/merge-video', {
     method: 'POST',
+    body: JSON.stringify({ subtitleType }),
   });
 }
 

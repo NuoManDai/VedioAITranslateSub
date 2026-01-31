@@ -124,5 +124,6 @@
     "confirmRestartSubtitleDesc": "字幕処理の中間ファイル（ログ、翻訳キャッシュ、字幕ファイルなど）がすべて削除されます。元の動画と音声は保持されます。",
     "confirmRestartDubbing": "吹き替え処理を再開しますか？",
     "confirmRestartDubbingDesc": "吹き替え処理の中間ファイル（音声セグメント、参照音声など）がすべて削除されます。元の動画と字幕は保持されます。",
-    "cleanupSuccess": "クリーンアップ完了、処理を再開できます"
+    "cleanupSuccess": "クリーンアップ完了、処理を再開できます",
+    "subtitleMergedSuccess": "字幕が動画に正常に合成されました"
 }

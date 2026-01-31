@@ -124,5 +124,6 @@
     "confirmRestartSubtitleDesc": "Cela supprimera tous les fichiers intermédiaires du traitement des sous-titres. La vidéo et l'audio originaux seront conservés.",
     "confirmRestartDubbing": "Redémarrer le traitement du doublage ?",
     "confirmRestartDubbingDesc": "Cela supprimera tous les fichiers intermédiaires du traitement du doublage. La vidéo et les sous-titres originaux seront conservés.",
-    "cleanupSuccess": "Nettoyage terminé, prêt à redémarrer le traitement"
+    "cleanupSuccess": "Nettoyage terminé, prêt à redémarrer le traitement",
+    "subtitleMergedSuccess": "Les sous-titres ont été fusionnés avec succès dans la vidéo"
 }

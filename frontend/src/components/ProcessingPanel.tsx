@@ -66,6 +66,7 @@ export default function ProcessingPanel({
   const isDubbingProcessing = dubbingJob?.status === 'running'
   const isProcessing = isSubtitleProcessing || isDubbingProcessing
   const subtitleCompleted = subtitleJob?.status === 'completed'
+  const subtitleMerged = status?.subtitleMerged ?? false
   
   // Use backend-provided flags for button states
   const canStartSubtitle = status?.canStartSubtitle ?? false
@@ -338,18 +339,20 @@ export default function ProcessingPanel({
           <div className="processing-job-content">
             <div className="flex items-center justify-between mb-4">
               <span className={`status-tag ${
+                subtitleMerged ? 'status-tag-success' :
                 subtitleCompleted ? 'status-tag-success' : 'status-tag-default'
               }`}>
-                {subtitleCompleted ? t('ready') || '就绪' : t('pending')}
+                {subtitleMerged ? t('completed') || '已完成' :
+                 subtitleCompleted ? t('ready') || '就绪' : t('pending')}
               </span>
               <Text className="text-slate-500 text-sm">
-                {subtitleCompleted ? '100%' : '0%'}
+                {subtitleMerged ? '100%' : subtitleCompleted ? '66%' : '0%'}
               </Text>
             </div>
             
             <Progress 
-              percent={subtitleCompleted ? 100 : 0} 
-              status={subtitleCompleted ? 'success' : 'normal'}
+              percent={subtitleMerged ? 100 : subtitleCompleted ? 66 : 0} 
+              status={subtitleMerged ? 'success' : subtitleCompleted ? 'active' : 'normal'}
               strokeColor={{
                 '0%': '#667eea',
                 '100%': '#764ba2',
@@ -363,7 +366,7 @@ export default function ProcessingPanel({
               <Steps
                 size="small"
                 className="modern-steps min-w-max"
-                current={subtitleCompleted ? 2 : -1}
+                current={subtitleMerged ? 3 : subtitleCompleted ? 2 : -1}
                 items={[
                   {
                     title: <span className="text-slate-600 text-xs">{t('proofreadStep1Title') || '校对字幕'}</span>,
@@ -381,8 +384,10 @@ export default function ProcessingPanel({
                   },
                   {
                     title: <span className="text-slate-600 text-xs">{t('proofreadMergeTip') || '合并到视频'}</span>,
-                    status: 'wait',
-                    description: null,
+                    status: subtitleMerged ? 'finish' : 'wait',
+                    description: subtitleMerged 
+                      ? <span className="text-green-500 text-xs">✓</span>
+                      : null,
                   },
                 ]}
               />
@@ -396,8 +401,16 @@ export default function ProcessingPanel({
               </div>
             )}
 
-            {/* Info tip */}
-            {subtitleCompleted && (
+            {/* Success message if subtitle merged */}
+            {subtitleMerged && (
+              <div className="mt-4 p-3 rounded-lg bg-green-50 border border-green-200 text-green-700 text-sm flex items-center gap-2">
+                <span>✅</span>
+                <span>{t('subtitleMergedSuccess') || '字幕已成功合并到视频中'}</span>
+              </div>
+            )}
+
+            {/* Info tip - only show when subtitle completed but not yet merged */}
+            {subtitleCompleted && !subtitleMerged && (
               <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 text-sm flex items-center gap-2">
                 <span>💡</span>
                 <span>{t('proofreadMergeTipDesc') || '在字幕编辑器中点击"合并到视频"按钮，即可将字幕烧录到视频中'}</span>
