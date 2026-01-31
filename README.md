@@ -15,6 +15,7 @@
 
 ## 🌟 功能特性
 
+### 核心功能
 - 🎥 通过 yt-dlp 下载 YouTube 视频
 - **🎙️ WhisperX 词级识别和低幻觉字幕**
 - **📝 NLP 和 AI 驱动的字幕分割**
@@ -22,10 +23,19 @@
 - **🔄 三步翻译-反思-调整流程，达到影视级质量**
 - **✅ Netflix 标准单行字幕**
 - **🗣️ 支持 GPT-SoVITS、Azure、OpenAI、Fish TTS 等多种配音方案**
+- 🎨 支持语音克隆（Fish TTS、CosyVoice2、F5-TTS）
+
+### 专业字幕编辑器 🆕
+- **🎬 Aegisub 风格工作流** - 专业字幕编辑体验，支持快捷键操作
+- **📊 波形时间轴** - WaveSurfer.js 可视化波形，拖拽调整字幕时间轴
+- **🎥 视频字幕叠加** - 实时预览双语字幕效果，所见即所得
+- **💾 草稿自动保存** - IndexedDB 本地存储，30秒自动保存，防止数据丢失
+- **↩️ 字幕还原** - 支持一键还原到原始字幕
+
+### 系统特性
 - 🚀 FastAPI + React 现代前后端架构
 - 🌍 多语言界面支持（中/英/日/韩等）
 - 📝 详细日志和进度恢复
-- 🎨 支持语音克隆（Fish TTS、CosyVoice2、F5-TTS）
 
 ## 🔒 本地数据与隐私
 
@@ -219,22 +229,32 @@ npm run dev
 │   ├── api/routes/           # API 路由
 │   │   ├── video.py          # 视频上传/下载接口
 │   │   ├── processing.py     # 处理流程控制
+│   │   ├── subtitles.py      # 字幕编辑 API 🆕
 │   │   ├── config.py         # 配置管理
 │   │   └── logs.py           # 日志查询
 │   ├── models/               # Pydantic 数据模型
 │   └── services/             # 业务逻辑层
+│       └── subtitle_service.py  # 字幕服务 🆕
 │
 ├── frontend/                 # React + TypeScript 前端
 │   └── src/
 │       ├── components/       # UI 组件
 │       │   ├── settings/     # 设置弹窗组件
+│       │   ├── subtitle-editor/  # 字幕编辑器组件 🆕
+│       │   │   ├── Timeline.tsx      # 波形时间轴
+│       │   │   ├── VideoSync.tsx     # 视频同步播放
+│       │   │   └── SubtitleList.tsx  # 字幕列表编辑
 │       │   ├── VideoUpload.tsx
 │       │   ├── YouTubeDownload.tsx
 │       │   ├── ProcessingPanel.tsx
 │       │   └── ConsolePanel.tsx
 │       ├── pages/            # 页面
+│       │   └── SubtitleEditor.tsx  # 字幕编辑器页面 🆕
 │       ├── hooks/            # React Hooks
+│       │   └── useSubtitleEditor.ts  # 编辑器状态管理 🆕
 │       ├── services/         # API 调用封装
+│       │   ├── subtitleApi.ts    # 字幕 API 🆕
+│       │   └── indexeddb.ts      # 草稿本地存储 🆕
 │       └── i18n/             # 国际化
 │
 ├── core/                     # 核心处理模块
@@ -399,4 +419,5 @@ docker logs -f videolingo
 | [React](https://react.dev) | 前端 UI 框架 |
 | [Ant Design](https://ant.design) | UI 组件库 |
 | [Vite](https://vitejs.dev) | 前端构建工具 |
+| [WaveSurfer.js](https://wavesurfer.xyz) | 音频波形可视化 |
 | [PyTorch](https://pytorch.org) | 深度学习框架 |
