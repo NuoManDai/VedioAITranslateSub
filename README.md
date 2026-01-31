@@ -1,6 +1,13 @@
 # Video AI Translate Sub
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](CHANGELOG.md)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://python.org)
+[![TypeScript](https://img.shields.io/badge/typescript-5.3+-blue.svg)](https://typescriptlang.org)
+
 一站式视频翻译、本地化和配音工具，生成 Netflix 级别的字幕质量。
+
+> 📋 查看 [更新日志](CHANGELOG.md) | 📖 查看 [技术文档](docs/TECHNICAL.md)
 
 ## 📸 界面预览
 

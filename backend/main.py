@@ -1,6 +1,7 @@
 """
 VedioAITranslateSub Backend - FastAPI Application
 """
+
 import os
 import sys
 import time
@@ -21,6 +22,7 @@ if os.path.exists(FFMPEG_PATH):
     os.environ["PATH"] = FFMPEG_PATH + os.pathsep + os.environ.get("PATH", "")
     # Configure pydub to use our FFmpeg installation
     from pydub import AudioSegment
+
     AudioSegment.converter = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
     AudioSegment.ffmpeg = os.path.join(FFMPEG_PATH, "ffmpeg.exe")
     AudioSegment.ffprobe = os.path.join(FFMPEG_PATH, "ffprobe.exe")
@@ -28,20 +30,21 @@ if os.path.exists(FFMPEG_PATH):
 # Configure HuggingFace mirror and HTTP proxy from config
 try:
     import yaml
+
     config_path = PROJECT_ROOT / "config.yaml"
     if config_path.exists():
-        with open(config_path, 'r', encoding='utf-8') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
-            
+
             # Configure HTTP proxy for HuggingFace downloads
-            http_proxy = config.get('http_proxy', '')
+            http_proxy = config.get("http_proxy", "")
             if http_proxy:
                 os.environ["HTTP_PROXY"] = http_proxy
                 os.environ["HTTPS_PROXY"] = http_proxy
                 os.environ["HF_HUB_HTTP_PROXY"] = http_proxy
-            
+
             # Configure HuggingFace mirror (use default if empty)
-            hf_mirror = config.get('hf_mirror', '') or 'https://hf-mirror.com'
+            hf_mirror = config.get("hf_mirror", "") or "https://hf-mirror.com"
             os.environ["HF_ENDPOINT"] = hf_mirror
             # Disable xethub storage backend which causes download issues in China
             os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
@@ -57,37 +60,36 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 
-from api.routes import video, processing, config, logs, files
+from api.routes import video, processing, config, logs, files, subtitles
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware for logging all requests and responses"""
-    
+
     async def dispatch(self, request: Request, call_next: Callable):
         start_time = time.time()
-        
+
         # Log request
         logger.info(f"→ {request.method} {request.url.path}")
-        
+
         try:
             response = await call_next(request)
-            
+
             # Calculate duration
             duration = time.time() - start_time
-            
+
             # Log response
             logger.info(
                 f"← {request.method} {request.url.path} "
                 f"[{response.status_code}] ({duration:.3f}s)"
             )
-            
+
             return response
         except Exception as e:
             duration = time.time() - start_time
@@ -116,7 +118,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add request logging middleware
@@ -138,7 +140,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     logger.warning(f"HTTP {exc.status_code}: {exc.detail} - {request.url.path}")
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.detail, "code": f"HTTP_{exc.status_code}"}
+        content={"detail": exc.detail, "code": f"HTTP_{exc.status_code}"},
     )
 
 
@@ -151,13 +153,14 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={
             "detail": "An internal error occurred. Please check logs for details.",
             "error": str(exc),
-            "code": "INTERNAL_ERROR"
-        }
+            "code": "INTERNAL_ERROR",
+        },
     )
 
 
 # Validation error handler
 from fastapi.exceptions import RequestValidationError
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -167,8 +170,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={
             "detail": "Validation error",
             "errors": exc.errors(),
-            "code": "VALIDATION_ERROR"
-        }
+            "code": "VALIDATION_ERROR",
+        },
     )
 
 
@@ -178,6 +181,7 @@ app.include_router(processing.router, prefix="/api/processing", tags=["Processin
 app.include_router(config.router, prefix="/api/config", tags=["Config"])
 app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
 app.include_router(files.router, prefix="/api", tags=["Files"])
+app.include_router(subtitles.router, prefix="/api/subtitles", tags=["Subtitles"])
 
 
 @app.get("/", tags=["Health"])
@@ -194,10 +198,11 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
-        reload_dirs=[str(PROJECT_ROOT / "backend"), str(PROJECT_ROOT / "core")]
+        reload_dirs=[str(PROJECT_ROOT / "backend"), str(PROJECT_ROOT / "core")],
     )

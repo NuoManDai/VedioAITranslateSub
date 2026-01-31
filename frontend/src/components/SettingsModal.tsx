@@ -27,7 +27,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
   const [loading, setLoading] = useState(false)
   const [validating, setValidating] = useState(false)
   const [ttsMethod, setTtsMethod] = useState<TTSMethodType>('azure_tts')
-  const [whisperMethod, setWhisperMethod] = useState<WhisperMethod>('local')
+  const [whisperMethod, setWhisperMethod] = useState<WhisperMethod>('whisper')
   const [azureVoices, setAzureVoices] = useState<AzureVoice[]>([])
   const [loadingVoices, setLoadingVoices] = useState(false)
 
@@ -41,7 +41,7 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
     try {
       setLoading(true)
       const config = await getConfig()
-      const currentWhisperMethod = config.whisper?.method || 'local'
+      const currentWhisperMethod = config.whisper?.method || 'whisper'
       const currentTtsMethod = config.ttsMethod || 'edge_tts'
       setWhisperMethod(currentWhisperMethod as WhisperMethod)
       setTtsMethod(currentTtsMethod as TTSMethodType)

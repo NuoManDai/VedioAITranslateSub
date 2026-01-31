@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { Layout, Typography, Button, Space, Spin } from 'antd'
 import { SettingOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -6,6 +7,7 @@ import LanguageSwitch from './components/LanguageSwitch'
 
 // Lazy load heavy components
 const Home = lazy(() => import('./pages/Home'))
+const SubtitleEditor = lazy(() => import('./pages/SubtitleEditor'))
 const SettingsModal = lazy(() => import('./components/SettingsModal'))
 
 const { Header, Content, Footer } = Layout
@@ -21,7 +23,8 @@ const LoadingFallback = () => (
   </div>
 )
 
-function App() {
+// Main layout with header/footer (for Home page)
+function MainLayout() {
   const { t } = useTranslation()
   const [settingsVisible, setSettingsVisible] = useState(false)
 
@@ -68,6 +71,33 @@ function App() {
         />
       </Suspense>
     </Layout>
+  )
+}
+
+// App Router
+function AppRouter() {
+  const location = useLocation()
+  
+  // SubtitleEditor has its own layout (no header/footer)
+  if (location.pathname === '/editor') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <SubtitleEditor />
+      </Suspense>
+    )
+  }
+
+  // Default: Main layout with Home page
+  return <MainLayout />
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/*" element={<AppRouter />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
 

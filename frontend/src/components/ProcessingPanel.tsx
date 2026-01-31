@@ -3,7 +3,8 @@
  */
 import { useState, useEffect } from 'react'
 import { Steps, Progress, message, Typography, Modal, Tabs } from 'antd'
-import { PlayCircleOutlined, PauseOutlined, DownloadOutlined, ReloadOutlined, FileTextOutlined, SoundOutlined, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons'
+import { PlayCircleOutlined, PauseOutlined, DownloadOutlined, ReloadOutlined, FileTextOutlined, SoundOutlined, CheckCircleOutlined, DeleteOutlined, EditOutlined, MergeCellsOutlined } from '@ant-design/icons'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { Video, ProcessingStatus, ProcessingJob, StageStatus, ProcessingStage } from '../types'
 import {
@@ -29,7 +30,7 @@ interface ProcessingPanelProps {
 
 const POLL_INTERVAL = 3000 // 3 seconds
 
-// Default subtitle processing stages
+// Default subtitle processing stages (校对和合并移至独立Tab)
 const DEFAULT_SUBTITLE_STAGES: ProcessingStage[] = [
   { name: 'asr', displayName: '语音识别', status: 'pending' },
   { name: 'split_nlp', displayName: '文本粗切分', status: 'pending' },
@@ -38,7 +39,6 @@ const DEFAULT_SUBTITLE_STAGES: ProcessingStage[] = [
   { name: 'translate', displayName: '翻译', status: 'pending' },
   { name: 'split_sub', displayName: '字幕分割', status: 'pending' },
   { name: 'gen_sub', displayName: '生成字幕', status: 'pending' },
-  { name: 'merge_sub', displayName: '合并字幕到视频', status: 'pending' },
 ]
 
 // Default dubbing processing stages
@@ -311,27 +311,117 @@ export default function ProcessingPanel({
               </button>
             )}
 
-            {subtitleCompleted && (
-              <>
-                <a
-                  className="btn-secondary flex items-center gap-2"
-                  href={getSrtDownloadUrl()}
-                >
-                  <DownloadOutlined />
-                  {t('download_srt')}
-                </a>
-                
-                {!isProcessing && (
-                  <button
-                    className="btn-warning flex items-center gap-2"
-                    onClick={handleRestartSubtitle}
-                  >
-                    <ReloadOutlined />
-                    {t('restartSubtitle')}
-                  </button>
-                )}
-              </>
+            {subtitleCompleted && !isProcessing && (
+              <button
+                className="btn-warning flex items-center gap-2"
+                onClick={handleRestartSubtitle}
+              >
+                <ReloadOutlined />
+                {t('restartSubtitle')}
+              </button>
             )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'proofread',
+      label: (
+        <span className="flex items-center gap-2">
+          <MergeCellsOutlined />
+          {t('proofreadAndMerge') || '校对与合并'}
+        </span>
+      ),
+      children: (
+        <div className="p-4">
+          {/* Status and progress header - matching subtitle tab style */}
+          <div className="processing-job-content">
+            <div className="flex items-center justify-between mb-4">
+              <span className={`status-tag ${
+                subtitleCompleted ? 'status-tag-success' : 'status-tag-default'
+              }`}>
+                {subtitleCompleted ? t('ready') || '就绪' : t('pending')}
+              </span>
+              <Text className="text-slate-500 text-sm">
+                {subtitleCompleted ? '100%' : '0%'}
+              </Text>
+            </div>
+            
+            <Progress 
+              percent={subtitleCompleted ? 100 : 0} 
+              status={subtitleCompleted ? 'success' : 'normal'}
+              strokeColor={{
+                '0%': '#667eea',
+                '100%': '#764ba2',
+              }}
+              trailColor="rgba(0,0,0,0.06)"
+              showInfo={false}
+            />
+
+            {/* Steps indicator - matching subtitle tab style */}
+            <div className="mt-4 overflow-x-auto pb-2">
+              <Steps
+                size="small"
+                className="modern-steps min-w-max"
+                current={subtitleCompleted ? 2 : -1}
+                items={[
+                  {
+                    title: <span className="text-slate-600 text-xs">{t('proofreadStep1Title') || '校对字幕'}</span>,
+                    status: subtitleCompleted ? 'finish' : 'wait',
+                    description: subtitleCompleted 
+                      ? <span className="text-green-500 text-xs">✓</span>
+                      : null,
+                  },
+                  {
+                    title: <span className="text-slate-600 text-xs">{t('proofreadStep2Title') || '下载字幕'}</span>,
+                    status: subtitleCompleted ? 'finish' : 'wait',
+                    description: subtitleCompleted 
+                      ? <span className="text-green-500 text-xs">✓</span>
+                      : null,
+                  },
+                  {
+                    title: <span className="text-slate-600 text-xs">{t('proofreadMergeTip') || '合并到视频'}</span>,
+                    status: 'wait',
+                    description: null,
+                  },
+                ]}
+              />
+            </div>
+
+            {/* Warning message if subtitle not completed */}
+            {!subtitleCompleted && (
+              <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{t('proofreadRequiresSubtitle') || '需要先完成字幕处理'}</span>
+              </div>
+            )}
+
+            {/* Info tip */}
+            {subtitleCompleted && (
+              <div className="mt-4 p-3 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 text-sm flex items-center gap-2">
+                <span>💡</span>
+                <span>{t('proofreadMergeTipDesc') || '在字幕编辑器中点击"合并到视频"按钮，即可将字幕烧录到视频中'}</span>
+              </div>
+            )}
+          </div>
+          
+          {/* Action buttons - matching subtitle tab style */}
+          <div className="flex flex-wrap gap-3 mt-6 pt-4 border-t border-slate-200">
+            <Link
+              to="/editor"
+              className={`inline-flex items-center gap-2 ${subtitleCompleted ? 'btn-primary' : 'btn-disabled opacity-50 cursor-not-allowed pointer-events-none'}`}
+            >
+              <EditOutlined />
+              {t('enterEditor') || '进入字幕编辑器'}
+            </Link>
+            
+            <a
+              className={`inline-flex items-center gap-2 ${subtitleCompleted ? 'btn-secondary' : 'btn-disabled opacity-50 cursor-not-allowed pointer-events-none'}`}
+              href={subtitleCompleted ? getSrtDownloadUrl() : undefined}
+            >
+              <DownloadOutlined />
+              {t('download_srt') || '下载 SRT'}
+            </a>
           </div>
         </div>
       ),

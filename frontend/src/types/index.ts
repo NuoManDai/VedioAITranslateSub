@@ -335,3 +335,32 @@ export const WHISPER_MODELS = [
 ] as const;
 
 export type WhisperModel = typeof WHISPER_MODELS[number]['value'];
+
+// ============ Subtitle Editor Types ============
+
+export interface SubtitleEntry {
+  index: number;
+  startTime: number;  // seconds
+  endTime: number;    // seconds
+  text: string;       // Translation text
+  originalText?: string;  // Original text
+}
+
+export interface SubtitleDataResponse {
+  entries: SubtitleEntry[];
+  files: Record<string, { path: string; exists: boolean }>;
+  totalCount: number;
+}
+
+export interface SaveSubtitlesResponse {
+  success: boolean;
+  savedFiles: string[];
+  entryCount: number;
+}
+
+export interface MergeVideoResponse {
+  success: boolean;
+  outputVideo?: string;
+  exists?: boolean;
+  error?: string;
+}

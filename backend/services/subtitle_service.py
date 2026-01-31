@@ -1,0 +1,436 @@
+"""
+Subtitle Service - SRT parsing, editing and synchronization
+"""
+
+import re
+import os
+import shutil
+import logging
+from pathlib import Path
+from typing import List, Optional
+from dataclasses import dataclass
+from datetime import timedelta
+
+from api.deps import get_output_dir, get_project_root
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SubtitleEntry:
+    """Represents a single subtitle entry"""
+
+    index: int
+    start_time: float  # seconds
+    end_time: float  # seconds
+    text: str  # Main text (translation for trans files, original for src)
+    original_text: Optional[str] = (
+        None  # Original text (for trans_src dual-language files)
+    )
+
+    def to_srt_time(self, seconds: float) -> str:
+        """Convert seconds to SRT timestamp format (HH:MM:SS,mmm)"""
+        td = timedelta(seconds=seconds)
+        hours, remainder = divmod(td.total_seconds(), 3600)
+        minutes, secs = divmod(remainder, 60)
+        milliseconds = int((secs % 1) * 1000)
+        return f"{int(hours):02d}:{int(minutes):02d}:{int(secs):02d},{milliseconds:03d}"
+
+    def to_srt_block(self, include_original: bool = False) -> str:
+        """Convert to SRT format block"""
+        start = self.to_srt_time(self.start_time)
+        end = self.to_srt_time(self.end_time)
+
+        if include_original and self.original_text:
+            text = f"{self.text}\n{self.original_text}"
+        else:
+            text = self.text
+
+        return f"{self.index}\n{start} --> {end}\n{text}\n"
+
+
+class SubtitleService:
+    """Service for subtitle file operations"""
+
+    def __init__(self):
+        self.output_dir = get_output_dir()
+
+    # ========== SRT Parsing ==========
+
+    @staticmethod
+    def parse_srt_time(time_str: str) -> float:
+        """Parse SRT timestamp to seconds"""
+        # Format: HH:MM:SS,mmm or HH:MM:SS.mmm
+        time_str = time_str.replace(",", ".")
+        parts = time_str.split(":")
+        hours = int(parts[0])
+        minutes = int(parts[1])
+        seconds = float(parts[2])
+        return hours * 3600 + minutes * 60 + seconds
+
+    def parse_srt_file(self, filepath: Path) -> List[SubtitleEntry]:
+        """Parse an SRT file into subtitle entries"""
+        if not filepath.exists():
+            logger.warning(f"SRT file not found: {filepath}")
+            return []
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        return self.parse_srt_content(content)
+
+    def parse_srt_content(self, content: str) -> List[SubtitleEntry]:
+        """Parse SRT content string into subtitle entries"""
+        entries = []
+
+        # Split by double newline (subtitle blocks)
+        blocks = re.split(r"\n\s*\n", content.strip())
+
+        for block in blocks:
+            if not block.strip():
+                continue
+
+            lines = block.strip().split("\n")
+            if len(lines) < 3:
+                continue
+
+            try:
+                # First line: index
+                index = int(lines[0].strip())
+
+                # Second line: timestamps
+                time_match = re.match(
+                    r"(\d{2}:\d{2}:\d{2}[,\.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,\.]\d{3})",
+                    lines[1].strip(),
+                )
+                if not time_match:
+                    continue
+
+                start_time = self.parse_srt_time(time_match.group(1))
+                end_time = self.parse_srt_time(time_match.group(2))
+
+                # Remaining lines: text
+                text_lines = lines[2:]
+
+                # Check if this is a dual-language subtitle (trans_src format)
+                # First line is translation, second line (if exists) is original
+                if len(text_lines) >= 2:
+                    text = text_lines[0].strip()
+                    original_text = text_lines[1].strip()
+                else:
+                    text = "\n".join(text_lines).strip()
+                    original_text = None
+
+                entries.append(
+                    SubtitleEntry(
+                        index=index,
+                        start_time=start_time,
+                        end_time=end_time,
+                        text=text,
+                        original_text=original_text,
+                    )
+                )
+
+            except (ValueError, IndexError) as e:
+                logger.warning(f"Failed to parse subtitle block: {e}")
+                continue
+
+        return entries
+
+    # ========== SRT Writing ==========
+
+    def write_srt_file(
+        self,
+        entries: List[SubtitleEntry],
+        filepath: Path,
+        include_original: bool = False,
+    ):
+        """Write subtitle entries to SRT file"""
+        content = self.entries_to_srt_content(entries, include_original)
+
+        # Ensure directory exists
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        logger.info(f"Written {len(entries)} subtitles to {filepath}")
+
+    def entries_to_srt_content(
+        self, entries: List[SubtitleEntry], include_original: bool = False
+    ) -> str:
+        """Convert subtitle entries to SRT format string"""
+        blocks = []
+        for entry in entries:
+            blocks.append(entry.to_srt_block(include_original))
+        return "\n".join(blocks)
+
+    # ========== Multi-file Operations ==========
+
+    def get_all_subtitles(self) -> dict:
+        """
+        Get all subtitle files data
+
+        Returns dict with:
+        - entries: List of unified subtitle entries (using trans_src as base)
+        - files: Dict of file paths and their existence status
+        """
+        src_srt = self.output_dir / "src.srt"
+        trans_srt = self.output_dir / "trans.srt"
+        trans_src_srt = self.output_dir / "trans_src.srt"
+        src_trans_srt = self.output_dir / "src_trans.srt"
+
+        files_status = {
+            "src": {"path": str(src_srt), "exists": src_srt.exists()},
+            "trans": {"path": str(trans_srt), "exists": trans_srt.exists()},
+            "trans_src": {"path": str(trans_src_srt), "exists": trans_src_srt.exists()},
+            "src_trans": {"path": str(src_trans_srt), "exists": src_trans_srt.exists()},
+        }
+
+        # Parse entries - prefer trans_src as it has both languages
+        entries = []
+
+        if trans_src_srt.exists():
+            entries = self.parse_srt_file(trans_src_srt)
+        elif src_srt.exists() and trans_srt.exists():
+            # Merge src and trans
+            src_entries = self.parse_srt_file(src_srt)
+            trans_entries = self.parse_srt_file(trans_srt)
+
+            # Combine by index
+            trans_map = {e.index: e for e in trans_entries}
+            for src_entry in src_entries:
+                trans_entry = trans_map.get(src_entry.index)
+                entries.append(
+                    SubtitleEntry(
+                        index=src_entry.index,
+                        start_time=src_entry.start_time,
+                        end_time=src_entry.end_time,
+                        text=trans_entry.text if trans_entry else "",
+                        original_text=src_entry.text,
+                    )
+                )
+        elif src_srt.exists():
+            entries = self.parse_srt_file(src_srt)
+
+        return {"entries": entries, "files": files_status, "totalCount": len(entries)}
+
+    def save_all_subtitles(self, entries: List[SubtitleEntry]) -> dict:
+        """
+        Save subtitle entries to all SRT files
+
+        Updates:
+        - src.srt: Original text only
+        - trans.srt: Translation text only
+        - trans_src.srt: Translation + Original (line by line)
+        - src_trans.srt: Original + Translation (line by line)
+        """
+        # Reindex entries
+        for i, entry in enumerate(entries, 1):
+            entry.index = i
+
+        src_srt = self.output_dir / "src.srt"
+        trans_srt = self.output_dir / "trans.srt"
+        trans_src_srt = self.output_dir / "trans_src.srt"
+        src_trans_srt = self.output_dir / "src_trans.srt"
+
+        saved_files = []
+
+        # Write src.srt (original text only)
+        src_entries = []
+        for entry in entries:
+            src_entries.append(
+                SubtitleEntry(
+                    index=entry.index,
+                    start_time=entry.start_time,
+                    end_time=entry.end_time,
+                    text=entry.original_text or entry.text,
+                    original_text=None,
+                )
+            )
+        self.write_srt_file(src_entries, src_srt)
+        saved_files.append(str(src_srt))
+
+        # Write trans.srt (translation only)
+        trans_entries = []
+        for entry in entries:
+            trans_entries.append(
+                SubtitleEntry(
+                    index=entry.index,
+                    start_time=entry.start_time,
+                    end_time=entry.end_time,
+                    text=entry.text,
+                    original_text=None,
+                )
+            )
+        self.write_srt_file(trans_entries, trans_srt)
+        saved_files.append(str(trans_srt))
+
+        # Write trans_src.srt (translation + original)
+        self.write_srt_file(entries, trans_src_srt, include_original=True)
+        saved_files.append(str(trans_src_srt))
+
+        # Write src_trans.srt (original + translation)
+        src_trans_entries = []
+        for entry in entries:
+            src_trans_entries.append(
+                SubtitleEntry(
+                    index=entry.index,
+                    start_time=entry.start_time,
+                    end_time=entry.end_time,
+                    text=entry.original_text or "",
+                    original_text=entry.text,
+                )
+            )
+        self.write_srt_file(src_trans_entries, src_trans_srt, include_original=True)
+        saved_files.append(str(src_trans_srt))
+
+        logger.info(f"Saved subtitles to {len(saved_files)} files")
+
+        return {"success": True, "savedFiles": saved_files, "entryCount": len(entries)}
+
+    # ========== Merge to Video ==========
+
+    def merge_subtitles_to_video(self) -> dict:
+        """
+        Manually trigger subtitle merge to video
+
+        This calls the core merge function
+        """
+        import sys
+
+        project_root = get_project_root()
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+
+        from core._7_sub_into_vid import merge_subtitles_to_video
+
+        try:
+            merge_subtitles_to_video()
+
+            output_video = self.output_dir / "output_sub.mp4"
+
+            return {
+                "success": True,
+                "outputVideo": str(output_video),
+                "exists": output_video.exists(),
+            }
+        except Exception as e:
+            logger.error(f"Failed to merge subtitles to video: {e}")
+            return {"success": False, "error": str(e)}
+
+    # ========== Audio Stream ==========
+
+    def get_audio_path(self) -> Optional[Path]:
+        """Get path to audio file for waveform generation"""
+        # Prefer vocal-separated audio, fallback to raw
+        vocal_audio = self.output_dir / "audio" / "vocal.mp3"
+        raw_audio = self.output_dir / "audio" / "raw.mp3"
+
+        if vocal_audio.exists():
+            return vocal_audio
+        elif raw_audio.exists():
+            return raw_audio
+
+        return None
+
+    # ========== Backup & Restore ==========
+
+    def get_backup_dir(self) -> Path:
+        """Get backup directory path"""
+        return self.output_dir / "backup"
+
+    def backup_original_subtitles(self) -> dict:
+        """
+        Backup original subtitle files after generation (before any edits)
+
+        Creates backup directory and copies all SRT files there.
+        Only creates backup if it doesn't already exist (preserves original).
+        """
+        backup_dir = self.get_backup_dir()
+
+        # List of files to backup
+        srt_files = ["src.srt", "trans.srt", "trans_src.srt", "src_trans.srt"]
+        backed_up = []
+        skipped = []
+
+        for filename in srt_files:
+            src_file = self.output_dir / filename
+            backup_file = backup_dir / filename
+
+            if not src_file.exists():
+                continue
+
+            # Only backup if backup doesn't exist (preserve original)
+            if backup_file.exists():
+                skipped.append(filename)
+                continue
+
+            # Create backup directory if needed
+            backup_dir.mkdir(parents=True, exist_ok=True)
+
+            # Copy file to backup
+            shutil.copy2(src_file, backup_file)
+            backed_up.append(filename)
+            logger.info(f"Backed up {filename} to {backup_file}")
+
+        return {
+            "success": True,
+            "backedUp": backed_up,
+            "skipped": skipped,
+            "backupDir": str(backup_dir),
+        }
+
+    def has_backup(self) -> bool:
+        """Check if backup exists"""
+        backup_dir = self.get_backup_dir()
+        if not backup_dir.exists():
+            return False
+
+        # Check if at least trans_src.srt backup exists
+        return (backup_dir / "trans_src.srt").exists()
+
+    def restore_original_subtitles(self) -> dict:
+        """
+        Restore subtitle files from backup
+
+        Copies all backed up SRT files back to output directory,
+        overwriting any user edits.
+        """
+        backup_dir = self.get_backup_dir()
+
+        if not backup_dir.exists():
+            return {
+                "success": False,
+                "error": "No backup found. Cannot restore.",
+                "restored": [],
+            }
+
+        # List of files to restore
+        srt_files = ["src.srt", "trans.srt", "trans_src.srt", "src_trans.srt"]
+        restored = []
+
+        for filename in srt_files:
+            backup_file = backup_dir / filename
+            dest_file = self.output_dir / filename
+
+            if not backup_file.exists():
+                continue
+
+            # Copy backup back to output
+            shutil.copy2(backup_file, dest_file)
+            restored.append(filename)
+            logger.info(f"Restored {filename} from backup")
+
+        if not restored:
+            return {
+                "success": False,
+                "error": "No backup files found to restore.",
+                "restored": [],
+            }
+
+        return {
+            "success": True,
+            "restored": restored,
+            "message": f"Restored {len(restored)} subtitle files from backup.",
+        }
