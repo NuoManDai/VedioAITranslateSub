@@ -21,9 +21,13 @@ _project_root = get_project_root()
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 from core.utils.config_utils import set_cancel_flag
+from services.batch_service import BatchService
 
 router = APIRouter()
 processing_service = ProcessingService()
+
+# Initialize batch service for mutual exclusion checks
+_batch_service = BatchService(db_path="data/batch.db")
 
 
 @router.post("/subtitle/start")
@@ -48,6 +52,12 @@ async def start_subtitle_processing(background_tasks: BackgroundTasks):
 
     if state.subtitle_job and state.subtitle_job.status == "running":
         raise HTTPException(status_code=400, detail="字幕处理已在进行中")
+
+    # Mutual exclusion: check if batch processing is active
+    if _batch_service.is_batch_processing():
+        raise HTTPException(
+            status_code=409, detail="批量处理正在进行中，无法启动单文件处理"
+        )
 
     try:
         job = processing_service.create_subtitle_job(state.current_video.id)
@@ -86,6 +96,12 @@ async def start_dubbing_processing(background_tasks: BackgroundTasks):
 
     if state.dubbing_job and state.dubbing_job.status == "running":
         raise HTTPException(status_code=400, detail="配音处理已在进行中")
+
+    # Mutual exclusion: check if batch processing is active
+    if _batch_service.is_batch_processing():
+        raise HTTPException(
+            status_code=409, detail="批量处理正在进行中，无法启动单文件处理"
+        )
 
     try:
         job = processing_service.create_dubbing_job(state.current_video.id)
