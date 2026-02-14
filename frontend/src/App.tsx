@@ -8,6 +8,7 @@ import LanguageSwitch from './components/LanguageSwitch'
 // Lazy load heavy components
 const Home = lazy(() => import('./pages/Home'))
 const SubtitleEditor = lazy(() => import('./pages/SubtitleEditor'))
+const BatchUpload = lazy(() => import('./pages/BatchUpload'))
 const SettingsModal = lazy(() => import('./components/SettingsModal'))
 
 const { Header, Content, Footer } = Layout
@@ -83,6 +84,15 @@ function AppRouter() {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <SubtitleEditor />
+      </Suspense>
+    )
+  }
+
+  // BatchUpload has its own layout
+  if (location.pathname === '/batch') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <BatchUpload />
       </Suspense>
     )
   }
