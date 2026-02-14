@@ -147,7 +147,25 @@ subtitle:
   # When enabled, subtitles will be split according to LLM's natural sentence breaks instead of WhisperX timestamps
   cjk_split: true
 
-# *Summary length, set low to 2k if using local LLM
+  # ==================== Subtitle Display Style ====================
+  # These settings affect both the preview in subtitle editor and the final burned-in subtitles
+  style:
+    # Translation subtitle settings (main subtitle, displayed at bottom)
+    translation:
+      font_size: 18
+      font_color: '#ffffff'
+      bg_color: rgba(0,0,0,0.75)
+      outline_color: '#000000'
+      outline_width: 1
+    original:
+      font_size: 14
+      font_color: '#CCCCCC'
+      bg_color: rgba(0,0,0,0.6)
+      outline_color: '#000000'
+      outline_width: 1
+    layout:
+      margin_bottom: 30
+      line_spacing: 2
 summary_length: 8000
 
 # *Maximum number of words for the first rough cut, below 18 will cut too finely affecting translation, above 22 is too long and will make subsequent subtitle splitting difficult to align
@@ -246,19 +264,19 @@ model_dir: './_model_cache'
 
 # Supported upload video formats
 allowed_video_formats:
-- 'mp4'
-- 'mov'
-- 'avi'
-- 'mkv'
-- 'flv'
-- 'wmv'
-- 'webm'
+  - 'mp4'
+  - 'mov'
+  - 'avi'
+  - 'mkv'
+  - 'flv'
+  - 'wmv'
+  - 'webm'
 
 allowed_audio_formats:
-- 'wav'
-- 'mp3'
-- 'flac'
-- 'm4a'
+  - 'wav'
+  - 'mp3'
+  - 'flac'
+  - 'm4a'
 
 # Spacy models
 spacy_model_map:
@@ -273,17 +291,17 @@ spacy_model_map:
 
 # Languages that use space as separator
 language_split_with_space:
-- 'en'
-- 'es'
-- 'fr'
-- 'de'
-- 'it'
-- 'ru'
+  - 'en'
+  - 'es'
+  - 'fr'
+  - 'de'
+  - 'it'
+  - 'ru'
 
 # Languages that do not use space as separator
 language_split_without_space:
-- 'zh'
-- 'ja'
+  - 'zh'
+  - 'ja'
 source_language: ja
 openai_tts_api_key: ''
 openai_voice: alloy

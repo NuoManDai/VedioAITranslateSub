@@ -5,7 +5,7 @@ REM This script starts the FastAPI backend server
 setlocal enabledelayedexpansion
 
 set PORT=8000
-set HOST=127.0.0.1
+set HOST=0.0.0.0
 
 echo ================================
 echo VedioAITranslateSub Backend
