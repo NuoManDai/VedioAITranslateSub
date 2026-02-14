@@ -3,7 +3,7 @@
  * 字幕样式设置弹窗 - 在字幕编辑器中配置字幕的字体大小、颜色等样式
  */
 import { useEffect, useState } from 'react'
-import { Modal, Form, InputNumber, Typography, Button, message, Spin, Input, Space } from 'antd'
+import { Modal, Form, InputNumber, Typography, Button, message, Spin, Input } from 'antd'
 import { useTranslation } from 'react-i18next'
 import { getConfig, updateConfig } from '../../services/api'
 
@@ -110,7 +110,7 @@ export default function SubtitleStyleModal({ open, onClose, onStyleChange }: Sub
         },
       }
 
-      await updateConfig(styleToSave)
+      await updateConfig(styleToSave as any)
       
       // Notify parent of style change for preview update
       if (onStyleChange) {

@@ -3,7 +3,7 @@
  * Redesigned with modern, elegant UI
  */
 import { useRef, useEffect, useCallback, forwardRef, useImperativeHandle, useMemo } from 'react';
-import { Typography, Slider } from 'antd';
+import { Typography } from 'antd';
 import { PlayCircleFilled, PauseCircleFilled, SoundOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { getVideoStreamUrl } from '../../services/api';
