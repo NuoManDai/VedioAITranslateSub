@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import type { Video, VideoStatus, VideoSourceType } from '@/types'
 import { getVideos, deleteVideo } from '@/services/api'
+import VideoUpload from '@/components/VideoUpload'
 
 const { Title, Text } = Typography
 
@@ -89,6 +90,12 @@ export default function VideoList() {
   const navigate = useNavigate()
   const [videos, setVideos] = useState<Video[]>([])
   const [loading, setLoading] = useState(true)
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
+
+  const handleUploadSuccess = (video: Video) => {
+    setUploadModalOpen(false)
+    navigate(`/video/${video.id}`)
+  }
 
   const fetchVideos = useCallback(async () => {
     try {
@@ -165,7 +172,7 @@ export default function VideoList() {
           type="primary"
           icon={<PlusOutlined />}
           size="large"
-          onClick={() => navigate('/')}
+          onClick={() => setUploadModalOpen(true)}
           style={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             border: 'none',
@@ -206,7 +213,7 @@ export default function VideoList() {
               type="primary"
               icon={<PlusOutlined />}
               size="large"
-              onClick={() => navigate('/')}
+              onClick={() => setUploadModalOpen(true)}
               style={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 border: 'none',
@@ -301,6 +308,17 @@ export default function VideoList() {
           ))}
         </Row>
       )}
+      {/* Upload Modal */}
+      <Modal
+        title="Upload Video"
+        open={uploadModalOpen}
+        onCancel={() => setUploadModalOpen(false)}
+        footer={null}
+        destroyOnClose
+        width={520}
+      >
+        <VideoUpload onSuccess={handleUploadSuccess} />
+      </Modal>
     </div>
   )
 }
