@@ -95,8 +95,7 @@ batch/output/
 batch/uploads/
 batch/tasks_setting.xlsx
 
-# 应用配置（含 API Key，不应提交）
-config.yaml
+# 应用配置备份
 config.backup.yaml
 
 # Conda 离线环境包
