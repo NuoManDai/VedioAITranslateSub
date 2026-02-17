@@ -3,9 +3,11 @@ Video API routes - Multi-video management
 """
 
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from models import VideoResponse, YouTubeDownloadRequest
 from api.deps import get_app_state
@@ -13,6 +15,10 @@ from services.video_service import VideoService
 
 router = APIRouter()
 video_service = VideoService()
+
+
+class VideoRenameRequest(BaseModel):
+    filename: str
 
 
 def _video_to_response(video) -> dict:
@@ -39,13 +45,34 @@ def _video_to_response(video) -> dict:
 
 
 @router.get("s")
-async def list_videos():
+async def list_videos(
+    offset: int = 0,
+    limit: int = 20,
+    keyword: Optional[str] = None,
+    status: Optional[str] = None,
+    source_type: Optional[str] = None,
+    sort_by: str = "created_at",
+    sort_order: str = "desc",
+):
     """
-    Get list of all videos from database.
+    Get paginated list of videos from database.
     Maps to GET /api/videos (router prefix is /api/video, route is "s").
+    Supports offset/limit pagination, keyword search, status/source filtering, and sorting.
     """
-    videos = video_service.list_videos()
-    return [_video_to_response(v) for v in videos]
+    videos, total = video_service.list_videos(
+        offset=offset,
+        limit=limit,
+        keyword=keyword,
+        status=status,
+        source_type=source_type,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+    return {
+        "items": [_video_to_response(v) for v in videos],
+        "total": total,
+        "hasMore": offset + limit < total,
+    }
 
 
 @router.post("/upload")
@@ -138,6 +165,21 @@ async def delete_video(video_id: str):
     try:
         video_service.delete_video(video_id)
         return {"message": "Video deleted"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/{video_id}")
+async def rename_video(video_id: str, request: VideoRenameRequest):
+    """Rename a video's filename"""
+    video = video_service.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    try:
+        updated = video_service.rename_video(video_id, request.filename)
+        return _video_to_response(updated)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

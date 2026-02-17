@@ -84,9 +84,26 @@ class VideoService:
         """Get a video by ID from database"""
         return self.db.get_video(video_id)
 
-    def list_videos(self) -> list[Video]:
-        """List all videos from database"""
-        return self.db.list_videos()
+    def list_videos(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        keyword: Optional[str] = None,
+        status: Optional[str] = None,
+        source_type: Optional[str] = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+    ) -> tuple[list[Video], int]:
+        """List videos with pagination, filtering, and sorting"""
+        return self.db.list_videos(
+            offset=offset,
+            limit=limit,
+            keyword=keyword,
+            status=status,
+            source_type=source_type,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
 
     def delete_video(self, video_id: str) -> None:
         """Delete video record and its output directory"""
@@ -101,6 +118,18 @@ class VideoService:
 
         # Remove DB record
         self.db.delete_video(video_id)
+
+    def rename_video(self, video_id: str, new_filename: str) -> Video:
+        """Rename a video's filename in the database"""
+        video = self.db.get_video(video_id)
+        if not video:
+            raise ValueError(f"Video not found: {video_id}")
+
+        self.db.update_video(video_id, filename=new_filename)
+        updated = self.db.get_video(video_id)
+        if not updated:
+            raise ValueError(f"Failed to retrieve video after rename: {video_id}")
+        return updated
 
     # ----------------------------
     # Upload
@@ -315,7 +344,7 @@ class VideoService:
     def detect_current_video(self) -> Optional[Video]:
         """Try to detect current video - check DB first, then filesystem"""
         # Check DB for most recently updated video
-        videos = self.db.list_videos()
+        videos, _ = self.db.list_videos(limit=1)
         if videos:
             return videos[0]  # Already sorted by created_at DESC
 

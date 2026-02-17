@@ -166,10 +166,38 @@ export async function deleteCurrentVideo(): Promise<MessageResponse> {
 }
 
 /**
- * Get all videos
+ * Paginated video list response
  */
-export async function getVideos(): Promise<Video[]> {
-  return fetchApi<Video[]>('/videos');
+export interface PaginatedVideos {
+  items: Video[];
+  total: number;
+  hasMore: boolean;
+}
+
+/**
+ * Get videos with pagination, filtering, and sorting
+ */
+export async function getVideos(
+  params: {
+    offset?: number;
+    limit?: number;
+    keyword?: string;
+    status?: string;
+    sourceType?: string;
+    sortBy?: string;
+    sortOrder?: string;
+  } = {}
+): Promise<PaginatedVideos> {
+  const searchParams = new URLSearchParams();
+  if (params.offset !== undefined) searchParams.append('offset', params.offset.toString());
+  if (params.limit !== undefined) searchParams.append('limit', params.limit.toString());
+  if (params.keyword) searchParams.append('keyword', params.keyword);
+  if (params.status) searchParams.append('status', params.status);
+  if (params.sourceType) searchParams.append('source_type', params.sourceType);
+  if (params.sortBy) searchParams.append('sort_by', params.sortBy);
+  if (params.sortOrder) searchParams.append('sort_order', params.sortOrder);
+  const query = searchParams.toString();
+  return fetchApi<PaginatedVideos>(`/videos${query ? `?${query}` : ''}`);
 }
 
 /**
@@ -185,6 +213,16 @@ export async function getVideo(id: string): Promise<Video> {
 export async function deleteVideo(id: string): Promise<MessageResponse> {
   return fetchApi<MessageResponse>(`/video/${id}`, {
     method: 'DELETE',
+  });
+}
+
+/**
+ * Rename a video
+ */
+export async function renameVideo(id: string, filename: string): Promise<Video> {
+  return fetchApi<Video>(`/video/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ filename }),
   });
 }
 

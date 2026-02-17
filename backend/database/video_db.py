@@ -126,16 +126,73 @@ class VideoDB:
 
         return self._row_to_video(row)
 
-    def list_videos(self) -> list[Video]:
-        """Get all videos ordered by created_at DESC"""
+    def list_videos(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        keyword: Optional[str] = None,
+        status: Optional[str] = None,
+        source_type: Optional[str] = None,
+        sort_by: str = "created_at",
+        sort_order: str = "desc",
+    ) -> tuple[list[Video], int]:
+        """Get videos with pagination, filtering, and sorting.
+        Returns (videos, total_count) tuple.
+
+        Args:
+            offset: Pagination offset
+            limit: Page size
+            keyword: Search filename by keyword
+            status: Filter by video status (ready, processing, completed, error, etc.)
+            source_type: Filter by source type (upload, youtube)
+            sort_by: Sort field (created_at, filename, duration)
+            sort_order: Sort direction (asc, desc)
+        """
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT * FROM videos ORDER BY created_at DESC")
+        # Build WHERE conditions
+        conditions: list[str] = []
+        params: list = []
+
+        if keyword:
+            conditions.append("filename LIKE ?")
+            params.append(f"%{keyword}%")
+
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+
+        if source_type:
+            conditions.append("source_type = ?")
+            params.append(source_type)
+
+        where_clause = ""
+        if conditions:
+            where_clause = "WHERE " + " AND ".join(conditions)
+
+        # Validate sort_by to prevent SQL injection
+        allowed_sort_fields = {"created_at", "filename", "duration"}
+        if sort_by not in allowed_sort_fields:
+            sort_by = "created_at"
+
+        sort_direction = "ASC" if sort_order.lower() == "asc" else "DESC"
+
+        # Get total count
+        count_query = f"SELECT COUNT(*) FROM videos {where_clause}"
+        cursor.execute(count_query, params)
+        total = cursor.fetchone()[0]
+
+        # Get paginated results
+        select_query = (
+            f"SELECT * FROM videos {where_clause} "
+            f"ORDER BY {sort_by} {sort_direction} LIMIT ? OFFSET ?"
+        )
+        cursor.execute(select_query, params + [limit, offset])
         rows = cursor.fetchall()
         conn.close()
 
-        return [self._row_to_video(row) for row in rows]
+        return [self._row_to_video(row) for row in rows], total
 
     def _row_to_video(self, row: sqlite3.Row) -> Video:
         """Convert database row to Video model"""
