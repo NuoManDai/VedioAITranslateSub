@@ -2,7 +2,7 @@
  * SubtitleEditor Page - Timeline-based subtitle editor
  */
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Layout, Button, Space, Spin, Modal, Typography, Badge, Radio, Switch, Tooltip } from 'antd';
 import { 
   ArrowLeftOutlined, 
@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next';
 import { useSubtitleEditor, resetDraftRestoreMessageFlag } from '../hooks/useSubtitleEditor';
 import { VideoSync, SubtitleList, Timeline, SubtitleStyleModal, VideoSyncRef, TimelineRef } from '../components/subtitle-editor';
 import { DEFAULT_SUBTITLE_STYLE } from '../components/subtitle-editor/VideoSync';
-import { getCurrentVideo, getConfig } from '../services/api';
+import { getVideo, getConfig } from '../services/api';
 import { loadEditorSettings, saveEditorSettings, EditorSettings } from '../services/editorSettings';
 import type { Video, SubtitleDisplayStyle } from '../types';
 import type { SubtitleMergeType } from '../services/subtitleApi';
@@ -28,6 +28,7 @@ const { Title, Text } = Typography;
 export default function SubtitleEditor() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const videoRef = useRef<VideoSyncRef>(null);
   const timelineRef = useRef<TimelineRef>(null);
   const videoDataRef = useRef<Video | null>(null);
@@ -71,7 +72,7 @@ export default function SubtitleEditor() {
   // Load video info and subtitles on mount
   useEffect(() => {
     const init = async () => {
-      const video = await getCurrentVideo();
+      const video = await getVideo(id!);
       videoDataRef.current = video;
       await loadSubtitles();
       
@@ -173,10 +174,10 @@ export default function SubtitleEditor() {
         content: t('discardChangesConfirm') || '确定要放弃更改并返回吗？',
         okText: t('discard') || '放弃',
         cancelText: t('cancel') || '取消',
-        onOk: () => navigate('/'),
+        onOk: () => navigate(`/video/${id}`),
       });
     } else {
-      navigate('/');
+      navigate(`/video/${id}`);
     }
   }, [isDirty, navigate, t]);
 
@@ -204,7 +205,7 @@ export default function SubtitleEditor() {
         title: t('mergeSuccess') || '合并成功',
         content: t('mergeSuccessDesc') || '字幕已成功合并到视频中，即将返回首页查看结果',
         onOk: () => {
-          navigate('/');
+          navigate(`/video/${id}`);
         },
       });
     }

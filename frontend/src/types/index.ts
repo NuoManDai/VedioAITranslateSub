@@ -17,6 +17,8 @@ export interface Video {
   duration?: number;
   createdAt: string;
   errorMessage?: string;
+  thumbnailPath?: string;
+  updatedAt?: string;
 }
 
 // Processing types

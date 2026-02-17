@@ -51,13 +51,20 @@ const DEFAULT_DUBBING_STAGES: ProcessingStage[] = [
 ]
 
 export default function ProcessingPanel({
-  video: _video,
+  video,
   initialStatus,
   onStatusUpdate,
 }: ProcessingPanelProps) {
   const { t } = useTranslation()
   const [status, setStatus] = useState<ProcessingStatus | null>(initialStatus || null)
   const [_polling, setPolling] = useState(false)
+
+  // Sync status from parent when initialStatus prop changes (e.g., after video upload)
+  useEffect(() => {
+    if (initialStatus) {
+      setStatus(initialStatus)
+    }
+  }, [initialStatus])
 
   // Determine job states
   const subtitleJob = status?.subtitleJob
@@ -421,7 +428,7 @@ export default function ProcessingPanel({
           {/* Action buttons - matching subtitle tab style */}
           <div className="flex flex-wrap gap-3 mt-6 pt-4 border-t border-slate-200">
             <Link
-              to="/editor"
+              to={`/video/${video.id}/editor`}
               className={`inline-flex items-center gap-2 ${subtitleCompleted ? 'btn-primary' : 'btn-disabled opacity-50 cursor-not-allowed pointer-events-none'}`}
             >
               <EditOutlined />

@@ -14,6 +14,7 @@ import {
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import type { Video, VideoStatus, VideoSourceType } from '@/types'
+import { getVideos, deleteVideo } from '@/services/api'
 
 const { Title, Text } = Typography
 
@@ -92,16 +93,10 @@ export default function VideoList() {
   const fetchVideos = useCallback(async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/videos')
-      if (!response.ok) {
-        // API endpoint doesn't exist yet — show empty state
-        setVideos([])
-        return
-      }
-      const data: Video[] = await response.json()
+      const data = await getVideos()
       setVideos(data)
     } catch {
-      // Network error or API unavailable — gracefully show empty state
+      // API unavailable — gracefully show empty state
       setVideos([])
     } finally {
       setLoading(false)
@@ -121,7 +116,7 @@ export default function VideoList() {
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await fetch(`/api/video/${videoId}`, { method: 'DELETE' })
+          await deleteVideo(videoId)
           setVideos((prev) => prev.filter((v) => v.id !== videoId))
           message.success('Video deleted')
         } catch {

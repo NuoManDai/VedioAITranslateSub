@@ -1,48 +1,64 @@
 /**
- * Home Page - Main application interface
+ * Home Page - Video Detail interface (parameterized by URL :id)
  */
 import { useState, useEffect, useRef } from 'react'
-import { Card, Row, Col, message, Modal, Typography } from 'antd'
-import { CloudUploadOutlined, YoutubeOutlined, PlayCircleOutlined, RocketOutlined } from '@ant-design/icons'
+import { Card, Row, Col, message, Modal, Typography, Result, Button } from 'antd'
+import { CloudUploadOutlined, YoutubeOutlined, PlayCircleOutlined, RocketOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import VideoUpload from '../components/VideoUpload'
 import YouTubeDownload from '../components/YouTubeDownload'
 import VideoPlayer from '../components/VideoPlayer'
 import ProcessingPanel from '../components/ProcessingPanel'
 import ConsolePanel from '../components/ConsolePanel'
 import type { Video, ProcessingStatus } from '../types'
-import { getCurrentVideo, deleteCurrentVideo, getProcessingStatus } from '../services/api'
+import { getVideo, deleteVideo, getProcessingStatus, ApiRequestError } from '../services/api'
 
 const { Title, Text } = Typography
 
 export default function Home() {
   const { t } = useTranslation()
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [video, setVideo] = useState<Video | null>(null)
   const [status, setStatus] = useState<ProcessingStatus | null>(null)
   const [_loading, setLoading] = useState(true)
-  const recoveryPromptShownRef = useRef(false)  // 防止重复弹窗
+  const [error, setError] = useState<string | null>(null)
+  const recoveryPromptShownRef = useRef(false)
 
   useEffect(() => {
     loadInitialState()
-  }, [])
+  }, [id])
 
   const loadInitialState = async () => {
+    if (!id) {
+      setError('No video ID provided')
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
+      setError(null)
       const [currentVideo, processingStatus] = await Promise.all([
-        getCurrentVideo(),
+        getVideo(id),
         getProcessingStatus(),
       ])
       setVideo(currentVideo)
       setStatus(processingStatus)
-      
-      // Check for unfinished task (防止 StrictMode 下重复弹窗)
+
+      // Check for unfinished task
       if (processingStatus?.hasUnfinishedTask && !recoveryPromptShownRef.current) {
         recoveryPromptShownRef.current = true
         showRecoveryPrompt()
       }
-    } catch (error) {
-      console.error('Failed to load initial state:', error)
+    } catch (err) {
+      if (err instanceof ApiRequestError && err.statusCode === 404) {
+        setError('Video not found')
+      } else {
+        console.error('Failed to load initial state:', err)
+        setError('Failed to load video')
+      }
     } finally {
       setLoading(false)
     }
@@ -55,18 +71,26 @@ export default function Home() {
       cancelText: t('startOver'),
       onCancel: async () => {
         try {
-          await deleteCurrentVideo()
-          setVideo(null)
-          setStatus(null)
-        } catch (error) {
+          await deleteVideo(id!)
+          navigate('/')
+        } catch {
           message.error(t('error'))
         }
       },
     })
   }
 
-  const handleVideoLoaded = (newVideo: Video) => {
+  const handleVideoLoaded = async (newVideo: Video) => {
     setVideo(newVideo)
+    // Navigate to the new video's detail page
+    navigate(`/video/${newVideo.id}`, { replace: true })
+    // Fetch processing status so ProcessingPanel gets correct flags
+    try {
+      const processingStatus = await getProcessingStatus()
+      setStatus(processingStatus)
+    } catch (err) {
+      console.error('Failed to fetch processing status after video load:', err)
+    }
   }
 
   const handleDelete = async () => {
@@ -76,11 +100,10 @@ export default function Home() {
       cancelText: t('no'),
       onOk: async () => {
         try {
-          await deleteCurrentVideo()
-          setVideo(null)
-          setStatus(null)
+          await deleteVideo(id!)
+          navigate('/')
           message.success(t('success'))
-        } catch (error) {
+        } catch {
           message.error(t('error'))
         }
       },
@@ -94,9 +117,34 @@ export default function Home() {
     }
   }
 
+  // Error state - video not found
+  if (error) {
+    return (
+      <div className="space-y-8 animate-fade-in-up">
+        <Result
+          status="404"
+          title="Video Not Found"
+          subTitle={error}
+          extra={
+            <Link to="/">
+              <Button type="primary" icon={<ArrowLeftOutlined />}>
+                Back to Videos
+              </Button>
+            </Link>
+          }
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-8 animate-fade-in-up">
-      {/* Hero Section - Video Input */}
+      {/* Back to list link */}
+      <Link to="/" className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-700 mb-4">
+        <ArrowLeftOutlined /> Back to Videos
+      </Link>
+
+      {/* Hero Section - Video Input (only when no video loaded) */}
       {!video && (
         <>
           <div className="text-center mb-8">
@@ -206,3 +254,4 @@ export default function Home() {
     </div>
   )
 }
+

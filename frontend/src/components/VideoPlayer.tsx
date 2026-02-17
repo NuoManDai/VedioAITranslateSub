@@ -27,7 +27,7 @@ export default function VideoPlayer({ video, onDelete, subtitleCompleted = false
     }
   }, [subtitleCompleted])
 
-  const videoUrl = getVideoStreamUrl(video.filename, showSubtitled)
+  const videoUrl = getVideoStreamUrl(video.id, showSubtitled)
 
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return '-'

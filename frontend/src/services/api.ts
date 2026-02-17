@@ -166,12 +166,42 @@ export async function deleteCurrentVideo(): Promise<MessageResponse> {
 }
 
 /**
+ * Get all videos
+ */
+export async function getVideos(): Promise<Video[]> {
+  return fetchApi<Video[]>('/videos');
+}
+
+/**
+ * Get a single video by ID
+ */
+export async function getVideo(id: string): Promise<Video> {
+  return fetchApi<Video>(`/video/${id}`);
+}
+
+/**
+ * Delete a video by ID
+ */
+export async function deleteVideo(id: string): Promise<MessageResponse> {
+  return fetchApi<MessageResponse>(`/video/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Get video thumbnail URL
+ */
+export function getVideoThumbnailUrl(id: string): string {
+  return `${API_BASE_URL}/video/${id}/thumbnail`;
+}
+
+/**
  * Get video stream URL
- * @param filename - Video filename
+ * @param videoId - Video ID
  * @param withSubtitle - Whether to get the subtitled version if available
  */
-export function getVideoStreamUrl(filename: string, withSubtitle: boolean = false): string {
-  const url = `${API_BASE_URL}/video/stream/${encodeURIComponent(filename)}`;
+export function getVideoStreamUrl(videoId: string, withSubtitle: boolean = false): string {
+  const url = `${API_BASE_URL}/video/${videoId}/stream`;
   return withSubtitle ? `${url}?with_subtitle=true` : url;
 }
 
