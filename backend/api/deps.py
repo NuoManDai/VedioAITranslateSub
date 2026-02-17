@@ -1,6 +1,7 @@
 """
 API dependencies injection module
 """
+
 from pathlib import Path
 from typing import Generator, TYPE_CHECKING
 import os
@@ -28,6 +29,13 @@ def get_output_dir() -> Path:
     return OUTPUT_DIR
 
 
+def get_video_output_dir(video_id: str) -> Path:
+    """Get the per-video output directory path: output/{video_id}/"""
+    video_dir = OUTPUT_DIR / video_id
+    video_dir.mkdir(parents=True, exist_ok=True)
+    return video_dir
+
+
 def get_config_file() -> Path:
     """Get the config file path"""
     return CONFIG_FILE
@@ -42,14 +50,15 @@ def get_project_root() -> Path:
 # In production, this should be replaced with a proper database or cache
 class AppState:
     """Application state management"""
+
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-    
+
     def __init__(self):
         if self._initialized:
             return
@@ -59,15 +68,16 @@ class AppState:
         self.dubbing_job = None
         self._cancel_requested = False
         self._log_store = None
-    
+
     @property
-    def log_store(self) -> 'LogStore':
+    def log_store(self) -> "LogStore":
         """Get the log store singleton (lazy initialization)"""
         if self._log_store is None:
             from services.log_service import LogStore
+
             self._log_store = LogStore()
         return self._log_store
-    
+
     def reset(self):
         """Reset all state"""
         self.current_video = None
@@ -77,15 +87,15 @@ class AppState:
         # Don't reset log_store, just clear it
         if self._log_store:
             self._log_store.clear()
-    
+
     def request_cancel(self):
         """Request cancellation of current processing"""
         self._cancel_requested = True
-    
+
     def is_cancel_requested(self) -> bool:
         """Check if cancellation is requested"""
         return self._cancel_requested
-    
+
     def clear_cancel_request(self):
         """Clear cancellation request"""
         self._cancel_requested = False
@@ -96,6 +106,6 @@ def get_app_state() -> AppState:
     return AppState()
 
 
-def get_log_store() -> 'LogStore':
+def get_log_store() -> "LogStore":
     """Get the log store from application state"""
     return get_app_state().log_store

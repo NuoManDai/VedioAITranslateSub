@@ -1,118 +1,22 @@
 """
-Video API routes
+Video API routes - Multi-video management
 """
-import os
-import uuid
-import shutil
+
 from pathlib import Path
-from datetime import datetime
-from typing import Optional
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 
-from models import Video, VideoResponse, YouTubeDownloadRequest
-from api.deps import get_output_dir, get_app_state, get_project_root
+from models import VideoResponse, YouTubeDownloadRequest
+from api.deps import get_app_state
 from services.video_service import VideoService
 
 router = APIRouter()
 video_service = VideoService()
 
 
-@router.post("/upload")
-async def upload_video(file: UploadFile = File(...)):
-    """
-    上传视频文件
-    
-    支持的格式：MP4, AVI, MKV, MOV, WebM
-    """
-    # Validate file type
-    allowed_extensions = {'.mp4', '.avi', '.mkv', '.mov', '.webm', '.m4v'}
-    file_ext = Path(file.filename or '').suffix.lower()
-    
-    if file_ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"不支持的文件格式。支持的格式: {', '.join(allowed_extensions)}"
-        )
-    
-    try:
-        video = await video_service.save_uploaded_video(file)
-        return VideoResponse(
-            id=video.id,
-            filename=video.filename,
-            filepath=video.filepath,
-            source_type=video.source_type,
-            youtube_url=video.youtube_url,
-            status=video.status,
-            file_size=video.file_size,
-            duration=video.duration,
-            created_at=video.created_at,
-            error_message=video.error_message
-        ).model_dump(by_alias=True)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/youtube")
-async def download_youtube(
-    request: YouTubeDownloadRequest,
-    background_tasks: BackgroundTasks
-):
-    """
-    从 YouTube 下载视频
-    
-    支持的分辨率: 360p, 1080p, best
-    """
-    try:
-        video = await video_service.download_youtube_video(
-            request.url,
-            request.resolution
-        )
-        return VideoResponse(
-            id=video.id,
-            filename=video.filename,
-            filepath=video.filepath,
-            source_type=video.source_type,
-            youtube_url=video.youtube_url,
-            status=video.status,
-            file_size=video.file_size,
-            duration=video.duration,
-            created_at=video.created_at,
-            error_message=video.error_message
-        ).model_dump(by_alias=True)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/current")
-async def get_current_video():
-    """
-    获取当前视频信息
-    """
-    state = get_app_state()
-    if not state.current_video:
-        # Try to detect video from output directory
-        video = video_service.detect_current_video()
-        if video:
-            state.current_video = video
-            return VideoResponse(
-                id=video.id,
-                filename=video.filename,
-                filepath=video.filepath,
-                source_type=video.source_type,
-                youtube_url=video.youtube_url,
-                status=video.status,
-                file_size=video.file_size,
-                duration=video.duration,
-                created_at=video.created_at,
-                error_message=video.error_message
-            ).model_dump(by_alias=True)
-        raise HTTPException(status_code=404, detail="没有视频")
-    
-    video = state.current_video
+def _video_to_response(video) -> dict:
+    """Convert Video model to API response dict"""
     return VideoResponse(
         id=video.id,
         filename=video.filename,
@@ -122,78 +26,161 @@ async def get_current_video():
         status=video.status,
         file_size=video.file_size,
         duration=video.duration,
+        thumbnail_path=video.thumbnail_path,
         created_at=video.created_at,
-        error_message=video.error_message
+        updated_at=video.updated_at,
+        error_message=video.error_message,
     ).model_dump(by_alias=True)
+
+
+# ----------------------------
+# Multi-video endpoints
+# ----------------------------
+
+
+@router.get("s")
+async def list_videos():
+    """
+    Get list of all videos from database.
+    Maps to GET /api/videos (router prefix is /api/video, route is "s").
+    """
+    videos = video_service.list_videos()
+    return [_video_to_response(v) for v in videos]
+
+
+@router.post("/upload")
+async def upload_video(file: UploadFile = File(...)):
+    """
+    Upload a video file.
+    Saves to output/{video-id}/, creates DB record, returns video with UUID.
+    """
+    allowed_extensions = {".mp4", ".avi", ".mkv", ".mov", ".webm", ".m4v"}
+    file_ext = Path(file.filename or "").suffix.lower()
+
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported format. Allowed: {', '.join(allowed_extensions)}",
+        )
+
+    try:
+        video = await video_service.save_uploaded_video(file)
+        return _video_to_response(video)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/youtube")
+async def download_youtube(request: YouTubeDownloadRequest):
+    """
+    Download video from YouTube.
+    Downloads to output/{video-id}/, creates DB record, returns video.
+    """
+    try:
+        video = await video_service.download_youtube_video(
+            request.url, request.resolution
+        )
+        return _video_to_response(video)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ----------------------------
+# Backward compatibility (MUST be before /{video_id} to avoid route conflicts)
+# ----------------------------
+
+
+@router.get("/current")
+async def get_current_video():
+    """Get the current (most recently updated) video"""
+    state = get_app_state()
+    if not state.current_video:
+        video = video_service.detect_current_video()
+        if video:
+            state.current_video = video
+            return _video_to_response(video)
+        raise HTTPException(status_code=404, detail="No video found")
+
+    return _video_to_response(state.current_video)
 
 
 @router.delete("/current")
 async def delete_current_video():
-    """
-    删除当前视频
-    """
-    state = get_app_state()
-    
+    """Delete the current video (backward compat)"""
     try:
         await video_service.delete_current_video()
-        return {"message": "视频已删除"}
+        return {"message": "Video deleted"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/stream/{filename}")
-async def stream_video(filename: str, with_subtitle: bool = False):
+# ----------------------------
+# Per-video endpoints (dynamic {video_id} routes MUST come after static routes)
+# ----------------------------
+
+
+@router.get("/{video_id}")
+async def get_video(video_id: str):
+    """Get a single video by ID"""
+    video = video_service.get_video(video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    return _video_to_response(video)
+
+
+@router.delete("/{video_id}")
+async def delete_video(video_id: str):
+    """Delete a video by ID, removing DB record and output/{video-id}/ directory"""
+    try:
+        video_service.delete_video(video_id)
+        return {"message": "Video deleted"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{video_id}/stream")
+async def stream_video(video_id: str, with_subtitle: bool = False):
     """
-    获取视频流
-    
-    Args:
-        filename: 视频文件名
-        with_subtitle: 是否优先返回带字幕的版本
+    Stream video file from output/{video-id}/.
+    If with_subtitle=True, returns output_sub.mp4 if available.
     """
-    output_dir = get_output_dir()
-    
-    # If with_subtitle is True, try to return the subtitled version first
-    if with_subtitle:
-        subtitled_path = output_dir / "output_sub.mp4"
-        if subtitled_path.exists():
-            return FileResponse(
-                path=str(subtitled_path),
-                media_type='video/mp4',
-                filename="output_sub.mp4"
-            )
-    
-    # Try multiple possible locations for the original video
-    possible_paths = [
-        output_dir / filename,
-        output_dir / "video" / filename,
-        output_dir / "audio" / filename,
-    ]
-    
-    video_path = None
-    for path in possible_paths:
-        if path.exists():
-            video_path = path
-            break
-    
+    video_path = video_service.find_video_file(video_id, with_subtitle=with_subtitle)
     if not video_path:
-        raise HTTPException(status_code=404, detail="视频不存在")
-    
-    # Determine content type
+        raise HTTPException(status_code=404, detail="Video file not found")
+
     content_type_map = {
-        '.mp4': 'video/mp4',
-        '.webm': 'video/webm',
-        '.avi': 'video/x-msvideo',
-        '.mkv': 'video/x-matroska',
-        '.mov': 'video/quicktime',
+        ".mp4": "video/mp4",
+        ".webm": "video/webm",
+        ".avi": "video/x-msvideo",
+        ".mkv": "video/x-matroska",
+        ".mov": "video/quicktime",
     }
-    
+
     suffix = video_path.suffix.lower()
-    content_type = content_type_map.get(suffix, 'video/mp4')
-    
+    content_type = content_type_map.get(suffix, "video/mp4")
+
     return FileResponse(
         path=str(video_path),
         media_type=content_type,
-        filename=filename
+        filename=video_path.name,
+    )
+
+
+@router.get("/{video_id}/thumbnail")
+async def get_thumbnail(video_id: str):
+    """Serve thumbnail image for a video"""
+    thumb_path = video_service.find_thumbnail(video_id)
+    if not thumb_path:
+        raise HTTPException(status_code=404, detail="Thumbnail not found")
+
+    return FileResponse(
+        path=str(thumb_path),
+        media_type="image/jpeg",
+        filename="thumbnail.jpg",
     )

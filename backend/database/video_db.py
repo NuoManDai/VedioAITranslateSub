@@ -78,6 +78,7 @@ class VideoDB:
             status=status,
             file_size=file_size,
             duration=duration,
+            thumbnail_path=thumbnail_path,
             error_message=error_message,
         )
 
@@ -147,7 +148,9 @@ class VideoDB:
             status=row["status"],
             file_size=row["file_size"],
             duration=row["duration"],
+            thumbnail_path=row["thumbnail_path"],
             created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
             error_message=row["error_message"],
         )
 
