@@ -3,8 +3,10 @@ VedioAITranslateSub Backend - FastAPI Application
 """
 
 import os
+import shutil
 import sys
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Callable
@@ -101,6 +103,108 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             raise
 
 
+def _is_uuid_dir(name: str) -> bool:
+    """Check if a directory name is a valid UUID."""
+    try:
+        uuid.UUID(name)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
+# Video file extensions to detect during legacy migration
+_VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm"}
+
+
+def migrate_legacy_output():
+    """
+    Migrate legacy single-video output/ directory to per-video structure.
+
+    Legacy layout: output/video.mp4, output/log/, output/audio/, etc.
+    New layout: output/{uuid}/video.mp4, output/{uuid}/log/, etc.
+
+    This function is idempotent - it skips if already migrated.
+    Errors are logged but don't block startup.
+    """
+    try:
+        from api.deps import OUTPUT_DIR
+        from database.video_db import VideoDB
+
+        # Check if output directory exists
+        if not OUTPUT_DIR.exists():
+            return
+
+        # Check if output directory is empty
+        items = list(OUTPUT_DIR.iterdir())
+        if not items:
+            return
+
+        # Check if already migrated: all items are UUID-named directories
+        if all(item.is_dir() and _is_uuid_dir(item.name) for item in items):
+            logger.debug("Output directory already migrated (only UUID dirs found)")
+            return
+
+        # Identify legacy video files (direct children of output/)
+        video_files = [
+            item
+            for item in items
+            if item.is_file() and item.suffix.lower() in _VIDEO_EXTENSIONS
+        ]
+
+        if not video_files:
+            # No video files found at top level — could be partial state, skip
+            logger.debug("No legacy video files found in output/, skipping migration")
+            return
+
+        # Pick the first video file (single-video mode should have only one)
+        video_file = video_files[0]
+        video_id = str(uuid.uuid4())
+        target_dir = OUTPUT_DIR / video_id
+
+        logger.info(
+            f"Migrating legacy output to per-video structure: output/{video_id}/"
+        )
+
+        # Create target directory
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        # Move ALL contents of output/ to output/{video_id}/
+        # Skip any existing UUID-named subdirectories
+        for item in items:
+            if item.is_dir() and _is_uuid_dir(item.name):
+                continue
+
+            dst = target_dir / item.name
+            shutil.move(str(item), str(dst))
+            logger.debug(f"Moved {item.name} -> {video_id}/{item.name}")
+
+        # Create database record for the migrated video
+        db = VideoDB()
+        video_filename = video_file.name
+        video_filepath = f"output/{video_id}/{video_filename}"
+
+        # Determine status: 'completed' if pipeline output exists, 'ready' otherwise
+        has_output = (target_dir / "log").exists()
+        status = "completed" if has_output else "ready"
+
+        # Get file size
+        video_path = target_dir / video_filename
+        file_size = video_path.stat().st_size if video_path.exists() else None
+
+        db.create_video(
+            filename=video_filename,
+            filepath=video_filepath,
+            source_type="upload",
+            status=status,
+            file_size=file_size,
+        )
+
+        logger.info(f"Migrated legacy output to output/{video_id}/")
+
+    except Exception as e:
+        logger.error(f"Legacy output migration failed (non-fatal): {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
@@ -112,6 +216,9 @@ async def lifespan(app: FastAPI):
     # Initialize video database
     VideoDB().init_db()
     logger.info("Video database initialized")
+
+    # Migrate legacy output data (if any)
+    migrate_legacy_output()
 
     yield
     logger.info("Shutting down VedioAITranslateSub Backend...")
