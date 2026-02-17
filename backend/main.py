@@ -61,6 +61,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 
 from api.routes import video, processing, config, logs, files, subtitles, batch
+from database.video_db import VideoDB
 
 # Configure logging
 logging.basicConfig(
@@ -107,6 +108,11 @@ async def lifespan(app: FastAPI):
     logger.info("Starting VedioAITranslateSub Backend...")
     logger.info(f"Project root: {PROJECT_ROOT}")
     logger.info("=" * 50)
+
+    # Initialize video database
+    VideoDB().init_db()
+    logger.info("Video database initialized")
+
     yield
     logger.info("Shutting down VedioAITranslateSub Backend...")
 
