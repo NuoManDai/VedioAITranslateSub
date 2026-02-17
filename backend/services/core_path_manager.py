@@ -135,7 +135,7 @@ def _copy_video_to_flat_output(video_id: str, video_filename: str) -> str:
         raise
 
 
-def _save_pipeline_output(video_id: str) -> None:
+def _save_pipeline_output(video_id: str, video_filename: str) -> None:
     """
     Move pipeline output from flat output/ back to per-video directory.
 
@@ -144,6 +144,7 @@ def _save_pipeline_output(video_id: str) -> None:
 
     Args:
         video_id: The video UUID
+        video_filename: Original source video filename to skip during move
 
     Raises:
         Exception: If move operation fails
@@ -164,11 +165,9 @@ def _save_pipeline_output(video_id: str) -> None:
             logger.debug(f"Skipping per-video directory during move: {item.name}")
             continue
 
-        # Skip the source video file if it's still there
-        if item.is_file() and item.name.endswith(
-            (".mp4", ".mov", ".mkv", ".avi", ".flv", ".webm")
-        ):
-            logger.debug(f"Skipping video file during move: {item.name}")
+        # Skip ONLY the original source video (not pipeline outputs like output_sub.mp4)
+        if item.is_file() and item.name == video_filename:
+            logger.debug(f"Skipping source video during move: {item.name}")
             continue
 
         # Move files and directories
@@ -228,7 +227,7 @@ def setup_video_workspace(video_id: str, video_filename: str) -> None:
         raise
 
 
-def teardown_video_workspace(video_id: str) -> None:
+def teardown_video_workspace(video_id: str, video_filename: str) -> None:
     """
     Teardown workspace after video processing.
 
@@ -239,6 +238,7 @@ def teardown_video_workspace(video_id: str) -> None:
 
     Args:
         video_id: The video UUID
+        video_filename: Original source video filename to skip during move
 
     Raises:
         Exception: If any file operation fails
@@ -251,7 +251,7 @@ def teardown_video_workspace(video_id: str) -> None:
         logger.debug(f"Ensured per-video directories for {video_id}")
 
         # Step 2: Move pipeline output to per-video directory
-        _save_pipeline_output(video_id)
+        _save_pipeline_output(video_id, video_filename)
         logger.debug(f"Moved pipeline output to {video_id}")
 
         # Step 3: Clean remaining non-UUID items from flat output

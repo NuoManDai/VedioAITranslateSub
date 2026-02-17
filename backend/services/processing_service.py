@@ -16,6 +16,8 @@ import threading
 
 from models import ProcessingJob, Video
 from api.deps import get_app_state, get_output_dir, get_project_root, get_log_store
+from database.video_db import VideoDB
+from services.core_path_manager import setup_video_workspace, teardown_video_workspace
 
 # Import cancel flag utilities from core
 import sys
@@ -239,6 +241,7 @@ class ProcessingService:
     def __init__(self):
         self.output_dir = get_output_dir()
         self._setup_core_imports()
+        self.video_db = VideoDB()
 
     def _setup_core_imports(self):
         """Setup imports for core modules"""
@@ -272,6 +275,12 @@ class ProcessingService:
         )
 
         try:
+            # Setup workspace: copy video to flat output/
+            setup_video_workspace(video.id, video.filename)
+
+            # Update status in DB
+            self.video_db.update_video_status(video.id, "processing")
+
             # Stage 1: ASR (Speech Recognition)
             await self._run_stage(job, "asr", self._run_asr)
             if state.is_cancel_requested():
@@ -330,7 +339,8 @@ class ProcessingService:
 
             # Complete (校对和合并移至独立Tab，用户手动操作)
             job.complete()
-            video.status = "completed"
+            self.video_db.update_video_status(video.id, "completed")
+            video.status = "completed"  # Keep in-memory sync for backward compat
             logger.info("Subtitle processing completed successfully")
             log_store.info(
                 f"字幕处理完成 (视频: {video.filename})",
@@ -341,10 +351,17 @@ class ProcessingService:
         except Exception as e:
             logger.error(f"Subtitle processing failed: {e}", exc_info=True)
             job.fail(str(e))
-            video.status = "error"
+            self.video_db.update_video(video.id, status="error", error_message=str(e))
+            video.status = "error"  # Keep in-memory sync
             video.error_message = str(e)
             log_store.error(f"字幕处理失败: {str(e)}", source="subtitle", job_id=job.id)
         finally:
+            # Teardown workspace: move results to output/{video_id}/
+            try:
+                teardown_video_workspace(video.id, video.filename)
+            except Exception as teardown_err:
+                logger.error(f"Workspace teardown failed: {teardown_err}")
+
             state.clear_cancel_request()
             clear_cancel_flag()  # Also clear file-based flag
 
@@ -366,6 +383,12 @@ class ProcessingService:
         )
 
         try:
+            # Setup workspace: copy video to flat output/
+            setup_video_workspace(video.id, video.filename)
+
+            # Update status in DB
+            self.video_db.update_video_status(video.id, "processing")
+
             # Stage 1: Audio Task
             await self._run_stage(job, "audio_task", self._run_audio_task)
             if state.is_cancel_requested():
@@ -401,7 +424,8 @@ class ProcessingService:
 
             # Complete
             job.complete()
-            video.status = "completed"
+            self.video_db.update_video_status(video.id, "completed")
+            video.status = "completed"  # Keep in-memory sync for backward compat
             logger.info("Dubbing processing completed successfully")
             log_store.info(
                 f"配音处理完成 (视频: {video.filename})",
@@ -412,10 +436,17 @@ class ProcessingService:
         except Exception as e:
             logger.error(f"Dubbing processing failed: {e}", exc_info=True)
             job.fail(str(e))
-            video.status = "error"
+            self.video_db.update_video(video.id, status="error", error_message=str(e))
+            video.status = "error"  # Keep in-memory sync
             video.error_message = str(e)
             log_store.error(f"配音处理失败: {str(e)}", source="dubbing", job_id=job.id)
         finally:
+            # Teardown workspace: move results to output/{video_id}/
+            try:
+                teardown_video_workspace(video.id, video.filename)
+            except Exception as teardown_err:
+                logger.error(f"Workspace teardown failed: {teardown_err}")
+
             state.clear_cancel_request()
             clear_cancel_flag()  # Also clear file-based flag
 
