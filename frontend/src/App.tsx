@@ -1,5 +1,5 @@
 import { useState, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom'
 import { Layout, Typography, Button, Space, Spin } from 'antd'
 import { SettingOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +7,7 @@ import LanguageSwitch from './components/LanguageSwitch'
 
 // Lazy load heavy components
 const Home = lazy(() => import('./pages/Home'))
+const VideoList = lazy(() => import('./pages/VideoList'))
 const SubtitleEditor = lazy(() => import('./pages/SubtitleEditor'))
 const BatchUpload = lazy(() => import('./pages/BatchUpload'))
 const SettingsModal = lazy(() => import('./components/SettingsModal'))
@@ -24,7 +25,7 @@ const LoadingFallback = () => (
   </div>
 )
 
-// Main layout with header/footer (for Home page)
+// Main layout with header/footer
 function MainLayout() {
   const { t } = useTranslation()
   const [settingsVisible, setSettingsVisible] = useState(false)
@@ -56,7 +57,7 @@ function MainLayout() {
       
       <Content className="page-container">
         <Suspense fallback={<LoadingFallback />}>
-          <Home />
+          <Outlet />
         </Suspense>
       </Content>
       
@@ -75,37 +76,35 @@ function MainLayout() {
   )
 }
 
-// App Router
-function AppRouter() {
-  const location = useLocation()
-  
-  // SubtitleEditor has its own layout (no header/footer)
-  if (location.pathname === '/editor') {
-    return (
-      <Suspense fallback={<LoadingFallback />}>
-        <SubtitleEditor />
-      </Suspense>
-    )
-  }
-
-  // BatchUpload has its own layout
-  if (location.pathname === '/batch') {
-    return (
-      <Suspense fallback={<LoadingFallback />}>
-        <BatchUpload />
-      </Suspense>
-    )
-  }
-
-  // Default: Main layout with Home page
-  return <MainLayout />
-}
-
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/*" element={<AppRouter />} />
+        {/* Routes with MainLayout (header + footer) */}
+        <Route element={<MainLayout />}>
+          <Route path="/" element={
+            <Suspense fallback={<LoadingFallback />}>
+              <VideoList />
+            </Suspense>
+          } />
+          <Route path="/video/:id" element={
+            <Suspense fallback={<LoadingFallback />}>
+              <Home />
+            </Suspense>
+          } />
+        </Route>
+
+        {/* Standalone routes (no header/footer) */}
+        <Route path="/video/:id/editor" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <SubtitleEditor />
+          </Suspense>
+        } />
+        <Route path="/batch" element={
+          <Suspense fallback={<LoadingFallback />}>
+            <BatchUpload />
+          </Suspense>
+        } />
       </Routes>
     </BrowserRouter>
   )
