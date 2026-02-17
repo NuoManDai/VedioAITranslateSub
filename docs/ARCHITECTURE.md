@@ -1,19 +1,21 @@
-# VideoLingo Core 架构文档
+# VideoLingo 字幕处理架构文档
 
 ## 📋 目录
 
 1. [项目概述](#项目概述)
 2. [系统架构图](#系统架构图)
-3. [处理流程详解](#处理流程详解)
-4. [UML 图](#uml-图)
-5. [模型与技术选型](#模型与技术选型)
-6. [数据流图](#数据流图)
+3. [后端编排层](#后端编排层)
+4. [前端处理面板](#前端处理面板)
+5. [处理流程详解](#处理流程详解)
+6. [UML 图](#uml-图)
+7. [模型与技术选型](#模型与技术选型)
+8. [数据流图](#数据流图)
 
 ---
 
 ## 项目概述
 
-VideoLingo 是一个完整的视频本地化处理系统，支持视频下载、语音识别（ASR）、字幕分割、翻译、配音（TTS）、音视频合成等全流程自动化处理。
+VideoLingo 是一个视频本地化处理系统，支持视频下载、语音识别（ASR）、字幕分割、翻译、字幕生成与合并等全流程自动化处理。本文档聚焦于**字幕处理流水线**的架构设计。
 
 ### 核心功能模块
 
@@ -28,12 +30,21 @@ VideoLingo 是一个完整的视频本地化处理系统，支持视频下载、
 | Step 5  | `_5_split_sub.py` | 字幕分割对齐 |
 | Step 6  | `_6_gen_sub.py` | 字幕文件生成 |
 | Step 7  | `_7_sub_into_vid.py` | 字幕烧录到视频 |
-| Step 8.1| `_8_1_audio_task.py` | 配音任务生成 |
-| Step 8.2| `_8_2_dub_chunks.py` | 配音分块处理 |
-| Step 9  | `_9_refer_audio.py` | 参考音频提取 |
-| Step 10 | `_10_gen_audio.py` | TTS 音频生成 |
-| Step 11 | `_11_merge_audio.py` | 音频合并 |
-| Step 12 | `_12_dub_to_vid.py` | 配音合成到视频 |
+
+### 处理阶段定义
+
+```python
+# backend/models/stage.py
+SUBTITLE_STAGES = [
+    ProcessingStage(name="asr", display_name="语音识别"),
+    ProcessingStage(name="split_nlp", display_name="文本粗切分"),
+    ProcessingStage(name="split_meaning", display_name="GPT 语义分句"),
+    ProcessingStage(name="summarize", display_name="内容总结"),
+    ProcessingStage(name="translate", display_name="翻译"),
+    ProcessingStage(name="split_sub", display_name="字幕分割"),
+    ProcessingStage(name="gen_sub", display_name="生成字幕"),
+]
+```
 
 ---
 
@@ -44,6 +55,13 @@ flowchart TB
     subgraph Input["📥 输入层"]
         YT[YouTube URL]
         Local[本地视频]
+    end
+
+    subgraph Backend["🖥️ 后端编排层"]
+        FastAPI["FastAPI 路由"]
+        PS["ProcessingService<br/>7阶段顺序执行"]
+        TC["TqdmCapture<br/>日志捕获"]
+        LS["LogStore<br/>前端日志推送"]
     end
 
     subgraph Core["🔧 Core 处理层"]
@@ -68,44 +86,236 @@ flowchart TB
             SubCompress["字幕压缩优化"]
         end
         
-        subgraph TTS["TTS 模块"]
-            AzureTTS["Azure TTS"]
-            OpenAITTS["OpenAI TTS"]
-            EdgeTTS["Edge TTS (免费)"]
-            GPTSOVITS["GPT-SoVITS (本地)"]
-            FishTTS["Fish TTS"]
-            CosyVoice["CosyVoice2 / F5-TTS"]
-        end
-        
         subgraph Video["视频处理模块"]
             FFmpeg["FFmpeg"]
             OpenCV["OpenCV"]
-            Pydub["pydub"]
         end
+    end
+
+    subgraph Frontend["🎨 前端展示层"]
+        PP["ProcessingPanel<br/>3标签页"]
+        SE["SubtitleEditor<br/>字幕校对"]
     end
 
     subgraph External["☁️ 外部 API"]
         LLMAPI["LLM API<br/>OpenAI / DeepSeek<br/>302.ai / SiliconFlow"]
-        TTSAPI["TTS API<br/>Azure / OpenAI<br/>Fish / Edge"]
     end
 
     subgraph Output["📤 输出层"]
         SubVideo["output_sub.mp4<br/>带双语字幕视频"]
-        DubVideo["output_dub.mp4<br/>带配音视频"]
         SRT["src.srt / trans.srt<br/>字幕文件"]
-        DubAudio["dub.mp3<br/>配音音频"]
     end
 
-    Input --> ASR
-    ASR --> NLP
-    NLP --> LLM
-    LLM --> TTS
-    TTS --> Video
-    Video --> Output
+    Input --> FastAPI
+    FastAPI --> PS
+    PS --> TC
+    TC --> LS
+    LS --> PP
+    PS --> Core
+    Core --> Output
     
     LLM <--> LLMAPI
-    TTS <--> TTSAPI
+    PP --> SE
 ```
+
+---
+
+## 后端编排层
+
+### ProcessingService 架构
+
+`ProcessingService`（`backend/services/processing_service.py`）负责编排字幕处理的 7 个阶段，提供取消机制、日志捕获、状态恢复等能力。
+
+```mermaid
+classDiagram
+    class ProcessingService {
+        -output_dir: Path
+        +create_subtitle_job(video_id) ProcessingJob
+        +run_subtitle_processing(job, video) void
+        +detect_completed_stages(job_type) dict
+        +restore_job_state(job, video) void
+        +is_subtitle_processing_completed() bool
+        +cleanup_subtitle_files() void
+        -_run_stage(job, stage_name, stage_func) void
+        -_run_asr() void
+        -_run_split_nlp() void
+        -_run_split_meaning() void
+        -_run_summarize() void
+        -_run_translate() void
+        -_run_split_sub() void
+        -_run_gen_sub() void
+    }
+
+    class TqdmCapture {
+        -log_store: LogStore
+        -source: str
+        -job_id: str
+        -original_stream: IO
+        -stage_name: str
+        -_buffer: str
+        -_important_patterns: list
+        +write(text) int
+        +flush() void
+    }
+
+    class ProcessingJob {
+        +id: str
+        +video_id: str
+        +job_type: str
+        +status: str
+        +stages: list~ProcessingStage~
+        +current_stage: str
+        +start() void
+        +complete() void
+        +fail(error) void
+        +update_stage(name, status, message) void
+    }
+
+    class ProcessingStage {
+        +name: str
+        +display_name: str
+        +status: str
+        +message: str
+        +progress: float
+        +duration_ms: int
+    }
+
+    class AppState {
+        +is_cancel_requested() bool
+        +clear_cancel_request() void
+        +request_cancel() void
+    }
+
+    ProcessingService --> TqdmCapture : 创建并使用
+    ProcessingService --> ProcessingJob : 管理
+    ProcessingService --> AppState : 检查取消
+    ProcessingJob --> ProcessingStage : 包含多个
+```
+
+### run_subtitle_processing 执行流程
+
+`run_subtitle_processing()` 方法按顺序执行 7 个阶段，每个阶段之间检查取消标志：
+
+```python
+async def run_subtitle_processing(self, job: ProcessingJob, video: Video):
+    # 1. 清除取消标志（内存 + 文件）
+    state.clear_cancel_request()
+    clear_cancel_flag()
+    
+    # 2. 顺序执行 7 个阶段
+    await self._run_stage(job, "asr", self._run_asr)
+    if state.is_cancel_requested(): return  # 取消检查
+    
+    await self._run_stage(job, "split_nlp", self._run_split_nlp)
+    if state.is_cancel_requested(): return
+    
+    # ... 依次执行剩余阶段 ...
+    
+    await self._run_stage(job, "gen_sub", self._run_gen_sub)
+    
+    # 3. 标记完成
+    job.complete()
+```
+
+### _run_stage 单阶段执行
+
+每个阶段通过 `_run_stage()` 包装执行：
+
+1. 设置阶段状态为 `running`
+2. 创建 `TqdmCapture` 捕获 stdout/stderr
+3. 通过 `asyncio.to_thread()` 在线程池中运行（避免阻塞事件循环）
+4. 记录执行耗时
+5. 阶段完成后更新状态为 `completed`
+
+### TqdmCapture 日志捕获
+
+`TqdmCapture` 替换 `sys.stdout` 和 `sys.stderr`，捕获 core/ 模块的输出：
+
+- 过滤 tqdm 进度条（避免日志刷屏）
+- 识别重要日志行（emoji 前缀、ERROR/WARNING 等）
+- 将重要信息发送到 `LogStore`，供前端实时展示
+- 同时保留原始输出流（双写）
+
+### 取消机制
+
+采用**双层取消**策略：
+
+| 层级 | 机制 | 用途 |
+|------|------|------|
+| 内存层 | `AppState.is_cancel_requested()` | ProcessingService 在阶段间检查 |
+| 文件层 | `core/utils/config_utils` 的 cancel flag 文件 | core/ 模块内部长时间操作检查 |
+
+### 状态恢复
+
+服务器重启后，`detect_completed_stages()` 通过检查 `STAGE_OUTPUT_FILES` 中定义的输出文件是否存在，重建处理任务的完成状态：
+
+```python
+def detect_completed_stages(self, job_type="subtitle"):
+    stage_order = ["asr", "split_nlp", "split_meaning", 
+                   "summarize", "translate", "split_sub", "gen_sub"]
+    
+    for stage_name in stage_order:
+        # 检查该阶段的输出文件是否存在
+        stage_files = STAGE_OUTPUT_FILES[stage_name]
+        completed_stages[stage_name] = any(file.exists() for file in stage_files)
+    
+    return completed_stages
+```
+
+---
+
+## 前端处理面板
+
+### ProcessingPanel 3标签页架构
+
+`ProcessingPanel`（`frontend/src/components/ProcessingPanel.tsx`）提供 3 个标签页：
+
+```mermaid
+flowchart LR
+    subgraph Tab1["标签1: 字幕处理"]
+        S1["语音识别"]
+        S2["文本粗切分"]
+        S3["GPT 语义分句"]
+        S4["内容总结"]
+        S5["翻译"]
+        S6["字幕分割"]
+        S7["生成字幕"]
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+    end
+
+    subgraph Tab2["标签2: 字幕校对"]
+        Editor["进入字幕编辑器<br/>SubtitleEditor"]
+    end
+
+    subgraph Tab3["标签3: 合并到视频"]
+        Merge["选择合并类型<br/>烧录字幕到视频"]
+    end
+```
+
+### 状态轮询
+
+前端每 **2 秒** 向后端轮询处理状态：
+
+```typescript
+// 轮询间隔
+const POLLING_INTERVAL = 2000; // 2秒
+
+// 获取处理状态
+const status = await getProcessingStatus();
+// 更新每个阶段的状态（pending/running/completed/failed）
+// 显示进度、耗时、日志信息
+```
+
+### 阶段状态展示
+
+每个阶段显示以下信息：
+
+| 状态 | 图标 | 说明 |
+|------|------|------|
+| pending | 灰色圆点 | 等待执行 |
+| running | 蓝色旋转 | 正在执行，显示日志消息 |
+| completed | 绿色勾 | 完成，显示耗时 |
+| failed | 红色叉 | 失败，显示错误信息 |
 
 ---
 
@@ -132,19 +342,9 @@ flowchart LR
         S6["Step 6<br/>生成字幕"]
         S7["Step 7<br/>烧录字幕"]
     end
-    
-    subgraph Stage4["阶段四: 配音处理"]
-        S8_1["Step 8.1<br/>配音任务"]
-        S8_2["Step 8.2<br/>配音分块"]
-        S9["Step 9<br/>参考音频"]
-        S10["Step 10<br/>TTS生成"]
-        S11["Step 11<br/>音频合并"]
-        S12["Step 12<br/>配音合成"]
-    end
 
     S1 --> S2 --> S3_1 --> S3_2 --> S4_1 --> S4_2
     S4_2 --> S5 --> S6 --> S7
-    S7 --> S8_1 --> S8_2 --> S9 --> S10 --> S11 --> S12
 ```
 
 ### Step 2: 语音识别详细流程
@@ -730,63 +930,66 @@ flowchart LR
 ```mermaid
 sequenceDiagram
     participant User as 用户
+    participant Frontend as React 前端
+    participant Backend as FastAPI 后端
     participant YT as yt-dlp
     participant Demucs as Demucs
     participant Whisper as WhisperX
     participant SpaCy as spaCy
     participant LLM as LLM API
-    participant TTS as TTS API
     participant FFmpeg as FFmpeg
 
-    User->>YT: 1. 下载视频
-    YT-->>User: video.mp4
+    User->>Frontend: 上传视频/输入 URL
+    Frontend->>Backend: POST /api/processing/start
     
-    User->>Demucs: 2. 人声分离
-    Demucs-->>User: vocal.mp3 + background.mp3
+    Backend->>YT: Step 1. 下载视频
+    YT-->>Backend: video.mp4
     
-    User->>Whisper: 3. 语音识别 (raw.mp3)
-    Whisper-->>User: 转录文本
-    User->>Whisper: 时间戳对齐 (vocal.mp3)
-    Whisper-->>User: cleaned_chunks.xlsx
+    Backend->>Demucs: Step 2. 人声分离
+    Demucs-->>Backend: vocal.mp3 + background.mp3
+    
+    Backend->>Whisper: Step 2. 语音识别 (raw.mp3)
+    Whisper-->>Backend: 转录文本
+    Backend->>Whisper: 时间戳对齐 (vocal.mp3)
+    Whisper-->>Backend: cleaned_chunks.xlsx
+    
+    loop 前端轮询 (每2秒)
+        Frontend->>Backend: GET /api/processing/status
+        Backend-->>Frontend: 阶段状态、进度、日志
+    end
     
     rect rgb(200, 230, 255)
         Note over SpaCy: Step 3.1 NLP 分句
-        User->>SpaCy: 4a. 标点/时间分句
-        SpaCy-->>User: split_by_mark.txt
-        User->>SpaCy: 4b. 逗号分割
-        SpaCy-->>User: split_by_comma.txt
-        User->>SpaCy: 4c. 连接词分割
-        SpaCy-->>User: split_by_connector.txt
-        User->>SpaCy: 4d. 长句按词根分割
-        SpaCy-->>User: split_by_nlp.txt
+        Backend->>SpaCy: 标点/时间分句
+        SpaCy-->>Backend: split_by_mark.txt
+        Backend->>SpaCy: 逗号/连接词/词根分割
+        SpaCy-->>Backend: split_by_nlp.txt
     end
     
     rect rgb(255, 230, 200)
         Note over LLM: Step 3.2 语义分割
-        User->>SpaCy: 5a. 加载语言模型
-        SpaCy-->>User: nlp (ja/en/zh...)
-        User->>SpaCy: 5b. Tokenize 计算长度
-        SpaCy-->>User: token 数量
-        User->>LLM: 5c. GPT 分割超长句
-        LLM-->>User: 分割点 (||)
-        User->>User: 5d. 定位并应用分割
-        User-->>User: split_by_meaning.txt
+        Backend->>SpaCy: Tokenize 计算长度
+        SpaCy-->>Backend: token 数量
+        Backend->>LLM: GPT 分割超长句
+        LLM-->>Backend: 分割点 (||)
     end
     
-    User->>LLM: 6. 术语提取
-    LLM-->>User: terminology.json
+    Backend->>LLM: Step 4.1 术语提取
+    LLM-->>Backend: terminology.json
     
-    User->>LLM: 7. 翻译
-    LLM-->>User: 翻译结果
+    Backend->>LLM: Step 4.2 翻译
+    LLM-->>Backend: translation.xlsx
     
-    User->>LLM: 8. 字幕压缩
-    LLM-->>User: 适配长度的字幕
+    Backend->>LLM: Step 5. 字幕分割对齐
+    LLM-->>Backend: split_sub.xlsx
     
-    User->>TTS: 9. 生成配音
-    TTS-->>User: 音频片段
+    Backend->>Backend: Step 6. 生成 SRT 字幕文件
     
-    User->>FFmpeg: 10. 音视频合成
-    FFmpeg-->>User: output_dub.mp4
+    Backend->>FFmpeg: Step 7. 烧录字幕到视频
+    FFmpeg-->>Backend: output_sub.mp4
+    
+    Backend-->>Frontend: 处理完成
+    Frontend-->>User: 显示完成状态，可进入字幕校对
 ```
 
 ### 模块类图
@@ -803,12 +1006,6 @@ classDiagram
         +_5_split_sub.py
         +_6_gen_sub.py
         +_7_sub_into_vid.py
-        +_8_1_audio_task.py
-        +_8_2_dub_chunks.py
-        +_9_refer_audio.py
-        +_10_gen_audio.py
-        +_11_merge_audio.py
-        +_12_dub_to_vid.py
     }
     
     class ASRBackend {
@@ -838,15 +1035,22 @@ classDiagram
         +split_long_by_root()
     }
     
-    class TTSBackend {
-        +tts_main.py
-        +azure_tts.py
-        +openai_tts.py
-        +edge_tts.py
-        +gpt_sovits_tts.py
-        +fish_tts.py
-        +sf_cosyvoice2.py
-        +generate_audio()
+    class ProcessingService {
+        -current_task: Optional~Task~
+        -progress: dict
+        +start_processing(task_id)
+        +cancel_processing()
+        +get_status() ProcessingStatus
+        +run_stage(stage: ProcessingStage)
+        -_execute_pipeline()
+    }
+    
+    class SubtitleService {
+        +get_subtitles(task_id) SubtitleData
+        +save_subtitles(task_id, data)
+        +restore_subtitles(task_id)
+        +merge_to_video(task_id)
+        +get_backup_list(task_id)
     }
     
     class Utils {
@@ -857,11 +1061,12 @@ classDiagram
         +rprint()
     }
     
+    ProcessingService --> Core : 调度执行
     Core --> ASRBackend : uses
     ASRBackend --> SpeakerDiarization : optional
     Core --> SpacyUtils : uses
-    Core --> TTSBackend : uses
     Core --> Utils : uses
+    SubtitleService --> Core : 调用 _7_sub_into_vid
 ```
 
 ### 状态机图
@@ -892,20 +1097,13 @@ stateDiagram-v2
     
     GenSub --> BurnSub: 字幕生成完成
     
-    BurnSub --> AudioTask: 字幕烧录完成
+    BurnSub --> [*]: 字幕烧录完成
     
-    AudioTask --> DubChunks: 任务生成完成
+    BurnSub --> Proofread: 进入字幕校对
     
-    DubChunks --> ReferAudio: 分块完成
+    Proofread --> Merged: 校对完成，重新合成
     
-    ReferAudio --> TTSGen: 参考音频提取完成
-    
-    TTSGen --> MergeAudio: TTS生成完成
-    TTSGen --> Error: TTS失败
-    
-    MergeAudio --> DubVid: 音频合并完成
-    
-    DubVid --> [*]: 处理完成
+    Merged --> [*]: 最终视频生成
     
     Error --> [*]: 处理终止
 ```
@@ -958,18 +1156,6 @@ graph LR
 > **版本变更说明**: pyannote-audio 4.0 使用 `speechbrain/spkrec-ecapa-voxceleb` (ECAPA-TDNN) 替代了
 > 之前版本的 `wespeaker-voxceleb-resnet34-LM`，提供更好的说话人嵌入质量。
 
-### TTS 功能支持表
-
-| 引擎 | 语言支持 | 声音克隆 | 成本 | API 来源 |
-|-----|---------|---------|------|---------|
-| **Azure TTS** | 100+ | ❌ | 付费 | 302.ai |
-| **OpenAI TTS** | 多语言 | ❌ | 付费 | 302.ai |
-| **Edge TTS** | 多语言 | ❌ | 免费 | 微软 |
-| **GPT-SoVITS** | 多语言 | ✅ | 本地部署 | 本地 |
-| **Fish TTS** | 中/英 | ✅ | 付费 | 302.ai / SiliconFlow |
-| **CosyVoice2** | 中/英 | ✅ | 付费 | SiliconFlow |
-| **F5-TTS** | 多语言 | ✅ | 付费 | 302.ai |
-
 ### NLP 模型支持
 
 | 语言 | spaCy 模型 | 用途 |
@@ -997,9 +1183,6 @@ flowchart TD
         A1["raw.mp3"]
         A2["vocal.mp3"]
         A3["background.mp3"]
-        A4["refers/*.wav"]
-        A5["segs/*.wav"]
-        A6["audio_task.xlsx"]
     end
     
     subgraph Log["output/log/"]
@@ -1019,9 +1202,7 @@ flowchart TD
         F1["src.srt"]
         F2["trans.srt"]
         F3["src_trans.srt"]
-        F4["dub.mp3"]
         F5["output_sub.mp4"]
-        F6["output_dub.mp4"]
     end
     
     V -->|Step 2| A1
@@ -1038,12 +1219,6 @@ flowchart TD
     L5 -->|Step 6| F2
     L5 -->|Step 6| F3
     F2 -->|Step 7| F5
-    L5 -->|Step 8| A6
-    A2 -->|Step 9| A4
-    A6 -->|Step 10| A5
-    A5 -->|Step 11| F4
-    F4 -->|Step 12| F6
-    A3 -->|Step 12| F6
 ```
 
 ### 配置参数关系图
@@ -1066,11 +1241,6 @@ mindmap
       time_gap_threshold
       summary_length
       reflect_translate
-    TTS配置
-      tts_method
-      speed_factor.accept
-      speed_factor.min
-      voice_character
     字幕配置
       subtitle.max_length
       subtitle.target_multiplier
@@ -1087,25 +1257,32 @@ mindmap
 
 ## 总结
 
-VideoLingo 是一个模块化设计的视频本地化系统，具有以下特点：
+VideoLingo 字幕处理系统是一个模块化设计的视频字幕自动化工具，具有以下特点：
 
 ```mermaid
 mindmap
-  root((VideoLingo))
+  root((VideoLingo 字幕处理))
     架构特点
       流水线架构
-        12个独立步骤
+        7个独立步骤
         中间文件产出
         断点续传支持
       多模型支持
         ASR引擎切换
-        TTS引擎切换
         LLM模型切换
+      前后端分离
+        FastAPI 后端编排
+        React 前端轮询
     核心能力
       智能处理
         LLM语义分割
         双步骤翻译
         术语一致性
+      字幕校对
+        Aegisub风格编辑
+        波形时间轴
+        草稿自动保存
+        字幕还原
       性能优化
         并行处理
         GPU加速
@@ -1120,9 +1297,9 @@ mindmap
 
 ```mermaid
 pie title 技术栈组成
-    "Python Core" : 40
+    "Python Core" : 35
     "AI/ML Models" : 25
     "FFmpeg/Audio" : 15
-    "FastAPI/React" : 12
-    "External APIs" : 8
+    "React Frontend" : 15
+    "External APIs" : 10
 ```
