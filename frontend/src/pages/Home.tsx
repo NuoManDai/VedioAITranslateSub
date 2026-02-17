@@ -2,19 +2,15 @@
  * Home Page - Video Detail interface (parameterized by URL :id)
  */
 import { useState, useEffect, useRef } from 'react'
-import { Card, Row, Col, message, Modal, Typography, Result, Button } from 'antd'
-import { CloudUploadOutlined, YoutubeOutlined, PlayCircleOutlined, RocketOutlined, ArrowLeftOutlined } from '@ant-design/icons'
+import { Card, message, Modal, Result, Button } from 'antd'
+import { PlayCircleOutlined, RocketOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import VideoUpload from '../components/VideoUpload'
-import YouTubeDownload from '../components/YouTubeDownload'
 import VideoPlayer from '../components/VideoPlayer'
 import ProcessingPanel from '../components/ProcessingPanel'
 import ConsolePanel from '../components/ConsolePanel'
 import type { Video, ProcessingStatus } from '../types'
 import { getVideo, deleteVideo, getProcessingStatus, ApiRequestError } from '../services/api'
-
-const { Title, Text } = Typography
 
 export default function Home() {
   const { t } = useTranslation()
@@ -80,19 +76,6 @@ export default function Home() {
     })
   }
 
-  const handleVideoLoaded = async (newVideo: Video) => {
-    setVideo(newVideo)
-    // Navigate to the new video's detail page
-    navigate(`/video/${newVideo.id}`, { replace: true })
-    // Fetch processing status so ProcessingPanel gets correct flags
-    try {
-      const processingStatus = await getProcessingStatus()
-      setStatus(processingStatus)
-    } catch (err) {
-      console.error('Failed to fetch processing status after video load:', err)
-    }
-  }
-
   const handleDelete = async () => {
     Modal.confirm({
       title: t('confirmDelete'),
@@ -143,59 +126,6 @@ export default function Home() {
       <Link to="/" className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-700 mb-4">
         <ArrowLeftOutlined /> {t('videoList.backToVideos')}
       </Link>
-
-      {/* Hero Section - Video Input (only when no video loaded) */}
-      {!video && (
-        <>
-          <div className="text-center mb-8">
-            <Title level={2} className="!mb-2" style={{ 
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent'
-            }}>
-              {t('home.title') || 'AI Video Translation'}
-            </Title>
-            <Text className="text-gray-500 text-lg">
-              {t('home.subtitle') || 'Upload a video or paste a YouTube link to get started'}
-            </Text>
-          </div>
-          
-          <Row gutter={[24, 24]}>
-            <Col xs={24} lg={12}>
-              <Card 
-                className="modern-card h-full"
-                title={
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                         style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                      <CloudUploadOutlined className="text-white" />
-                    </div>
-                    <span>{t('videoUpload')}</span>
-                  </div>
-                }
-              >
-                <VideoUpload onSuccess={handleVideoLoaded} />
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card 
-                className="modern-card h-full"
-                title={
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-                         style={{ background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' }}>
-                      <YoutubeOutlined className="text-white" />
-                    </div>
-                    <span>{t('youtubeDownload')}</span>
-                  </div>
-                }
-              >
-                <YouTubeDownload onSuccess={handleVideoLoaded} />
-              </Card>
-            </Col>
-          </Row>
-        </>
-      )}
 
       {/* Video Player Section */}
       {video && (
