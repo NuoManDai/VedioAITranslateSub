@@ -23,27 +23,26 @@ const { Title, Text } = Typography
 // Helpers
 // ------------
 
-function getRelativeTime(dateString: string): string {
+function getRelativeTime(dateString: string, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const now = Date.now()
   const date = new Date(dateString).getTime()
   const diffMs = now - date
 
-  if (diffMs < 0) return 'just now'
+  if (diffMs < 0) return t('videoList.justNow')
 
   const seconds = Math.floor(diffMs / 1000)
   const minutes = Math.floor(seconds / 60)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
 
-  if (seconds < 60) return 'just now'
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
-  if (days === 1) return 'yesterday'
-  if (days < 7) return `${days} days ago`
+  if (seconds < 60) return t('videoList.justNow')
+  if (minutes < 60) return t('videoList.minutesAgo', { count: minutes })
+  if (hours < 24) return t('videoList.hoursAgo', { count: hours })
+  if (days === 1) return t('videoList.yesterday')
+  if (days < 7) return t('videoList.daysAgo', { count: days })
 
   const d = new Date(dateString)
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return `${monthNames[d.getMonth()]} ${d.getDate()}`
+  return d.toLocaleDateString()
 }
 
 function formatDuration(seconds?: number): string {
@@ -116,8 +115,8 @@ export default function VideoList() {
 
   const handleDelete = (videoId: string, filename: string) => {
     Modal.confirm({
-      title: 'Delete Video',
-      content: `Are you sure you want to delete "${filename}"? This action cannot be undone.`,
+      title: t('deleteVideo'),
+      content: t('videoList.confirmDeleteDesc', { filename }),
       okText: t('yes'),
       cancelText: t('no'),
       okButtonProps: { danger: true },
@@ -125,9 +124,9 @@ export default function VideoList() {
         try {
           await deleteVideo(videoId)
           setVideos((prev) => prev.filter((v) => v.id !== videoId))
-          message.success('Video deleted')
+          message.success(t('videoList.videoDeleted'))
         } catch {
-          message.error('Failed to delete video')
+          message.error(t('deleteFailed'))
         }
       },
     })
@@ -146,7 +145,7 @@ export default function VideoList() {
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Spin size="large" />
-          <p className="mt-4 text-gray-500">Loading videos...</p>
+          <p className="mt-4 text-gray-500">{t('videoList.loading')}</p>
         </div>
       </div>
     )
@@ -162,10 +161,10 @@ export default function VideoList() {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}>
-            My Videos
+            {t('videoList.title')}
           </Title>
           <Text className="text-gray-500">
-            {videos.length > 0 ? `${videos.length} video${videos.length === 1 ? '' : 's'}` : 'No videos yet'}
+            {videos.length > 0 ? t('videoList.videoCount', { count: videos.length }) : t('videoList.noVideosYet')}
           </Text>
         </div>
         <Button
@@ -181,7 +180,7 @@ export default function VideoList() {
             paddingInline: 24,
           }}
         >
-          New Video
+          {t('videoList.newVideo')}
         </Button>
       </div>
 
@@ -204,7 +203,7 @@ export default function VideoList() {
             description={
               <div className="space-y-2">
                 <Text className="text-gray-500 text-base block">
-                  No videos here yet. Upload a video or paste a YouTube link to get started.
+                  {t('videoList.emptyDesc')}
                 </Text>
               </div>
             }
@@ -222,7 +221,7 @@ export default function VideoList() {
                 paddingInline: 28,
               }}
             >
-              Upload your first video
+              {t('videoList.uploadFirst')}
             </Button>
           </Empty>
         </Card>
@@ -273,10 +272,10 @@ export default function VideoList() {
                   {/* Tags Row */}
                   <div className="flex items-center gap-2 flex-wrap">
                     <Tag color={STATUS_COLOR_MAP[video.status]}>
-                      {video.status}
+                      {t(video.status)}
                     </Tag>
                     <Tag icon={getSourceIcon(video.sourceType)} bordered={false}>
-                      {video.sourceType === 'youtube' ? 'YouTube' : 'Upload'}
+                      {video.sourceType === 'youtube' ? 'YouTube' : t('videoUpload')}
                     </Tag>
                   </div>
 
@@ -285,11 +284,11 @@ export default function VideoList() {
                     <Tooltip title={new Date(video.createdAt).toLocaleString()}>
                       <Text className="text-gray-400 text-xs flex items-center gap-1">
                         <ClockCircleOutlined />
-                        {getRelativeTime(video.createdAt)}
+                        {getRelativeTime(video.createdAt, t)}
                       </Text>
                     </Tooltip>
 
-                    <Tooltip title="Delete video">
+                    <Tooltip title={t('deleteVideo')}>
                       <Button
                         type="text"
                         size="small"
@@ -310,7 +309,7 @@ export default function VideoList() {
       )}
       {/* Upload Modal */}
       <Modal
-        title="Upload Video"
+        title={t('videoUpload')}
         open={uploadModalOpen}
         onCancel={() => setUploadModalOpen(false)}
         footer={null}

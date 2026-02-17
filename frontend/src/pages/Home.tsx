@@ -32,7 +32,7 @@ export default function Home() {
 
   const loadInitialState = async () => {
     if (!id) {
-      setError('No video ID provided')
+      setError(t('videoDetail.noVideoId'))
       setLoading(false)
       return
     }
@@ -54,10 +54,10 @@ export default function Home() {
       }
     } catch (err) {
       if (err instanceof ApiRequestError && err.statusCode === 404) {
-        setError('Video not found')
+        setError(t('videoDetail.videoNotFound'))
       } else {
         console.error('Failed to load initial state:', err)
-        setError('Failed to load video')
+        setError(t('videoDetail.loadFailed'))
       }
     } finally {
       setLoading(false)
@@ -123,12 +123,12 @@ export default function Home() {
       <div className="space-y-8 animate-fade-in-up">
         <Result
           status="404"
-          title="Video Not Found"
+          title={t('videoDetail.videoNotFound')}
           subTitle={error}
           extra={
             <Link to="/">
               <Button type="primary" icon={<ArrowLeftOutlined />}>
-                Back to Videos
+                {t('videoList.backToVideos')}
               </Button>
             </Link>
           }
@@ -141,7 +141,7 @@ export default function Home() {
     <div className="space-y-8 animate-fade-in-up">
       {/* Back to list link */}
       <Link to="/" className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-700 mb-4">
-        <ArrowLeftOutlined /> Back to Videos
+        <ArrowLeftOutlined /> {t('videoList.backToVideos')}
       </Link>
 
       {/* Hero Section - Video Input (only when no video loaded) */}
