@@ -6,7 +6,7 @@ import logging
 from typing import List, Optional
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel
 
@@ -100,7 +100,7 @@ class HasBackupResponse(BaseModel):
 
 
 @router.get("", response_model=SubtitleDataResponse)
-async def get_subtitles():
+async def get_subtitles(video_id: Optional[str] = Query(None)):
     """
     Get all subtitle data for editing
 
@@ -108,7 +108,7 @@ async def get_subtitles():
     Each entry contains both translation and original text.
     """
     try:
-        data = subtitle_service.get_all_subtitles()
+        data = subtitle_service.get_all_subtitles(video_id=video_id)
 
         # Convert dataclass entries to Pydantic models
         entries = [
@@ -131,7 +131,9 @@ async def get_subtitles():
 
 
 @router.put("", response_model=SaveSubtitlesResponse)
-async def save_subtitles(request: SaveSubtitlesRequest):
+async def save_subtitles(
+    request: SaveSubtitlesRequest, video_id: Optional[str] = Query(None)
+):
     """
     Save edited subtitles to all SRT files
 
@@ -153,7 +155,7 @@ async def save_subtitles(request: SaveSubtitlesRequest):
             for e in request.entries
         ]
 
-        result = subtitle_service.save_all_subtitles(entries)
+        result = subtitle_service.save_all_subtitles(entries, video_id=video_id)
 
         return SaveSubtitlesResponse(
             success=result["success"],
@@ -166,7 +168,10 @@ async def save_subtitles(request: SaveSubtitlesRequest):
 
 
 @router.post("/merge-video", response_model=MergeVideoResponse)
-async def merge_video(request: MergeVideoRequest = MergeVideoRequest()):
+async def merge_video(
+    request: MergeVideoRequest = MergeVideoRequest(),
+    video_id: Optional[str] = Query(None),
+):
     """
     Manually trigger merging subtitles to video
 
@@ -180,7 +185,9 @@ async def merge_video(request: MergeVideoRequest = MergeVideoRequest()):
     - "src_trans": src_trans.srt (single file with both languages, reversed order)
     """
     try:
-        result = subtitle_service.merge_subtitles_to_video(request.subtitleType)
+        result = subtitle_service.merge_subtitles_to_video(
+            request.subtitleType or "dual", video_id=video_id
+        )
 
         return MergeVideoResponse(
             success=result["success"],
@@ -194,13 +201,13 @@ async def merge_video(request: MergeVideoRequest = MergeVideoRequest()):
 
 
 @router.get("/audio")
-async def get_audio_stream():
+async def get_audio_stream(video_id: Optional[str] = Query(None)):
     """
     Get audio stream for waveform visualization
 
     Returns the audio file (vocal.mp3 or raw.mp3) for wavesurfer.js
     """
-    audio_path = subtitle_service.get_audio_path()
+    audio_path = subtitle_service.get_audio_path(video_id=video_id)
 
     if not audio_path or not audio_path.exists():
         raise HTTPException(status_code=404, detail="Audio file not found")
@@ -211,7 +218,7 @@ async def get_audio_stream():
 
 
 @router.post("/backup", response_model=BackupResponse)
-async def backup_subtitles():
+async def backup_subtitles(video_id: Optional[str] = Query(None)):
     """
     Backup current subtitle files
 
@@ -219,7 +226,7 @@ async def backup_subtitles():
     Only backs up if no backup exists (preserves original).
     """
     try:
-        result = subtitle_service.backup_original_subtitles()
+        result = subtitle_service.backup_original_subtitles(video_id=video_id)
         return BackupResponse(
             success=result["success"],
             backedUp=result.get("backedUp", []),
@@ -232,14 +239,14 @@ async def backup_subtitles():
 
 
 @router.get("/has-backup", response_model=HasBackupResponse)
-async def check_backup():
+async def check_backup(video_id: Optional[str] = Query(None)):
     """
     Check if subtitle backup exists
 
     Returns true if original subtitles have been backed up.
     """
     try:
-        has_backup = subtitle_service.has_backup()
+        has_backup = subtitle_service.has_backup(video_id=video_id)
         return HasBackupResponse(hasBackup=has_backup)
     except Exception as e:
         logger.error(f"Failed to check backup: {e}")
@@ -247,7 +254,7 @@ async def check_backup():
 
 
 @router.post("/restore", response_model=RestoreResponse)
-async def restore_subtitles():
+async def restore_subtitles(video_id: Optional[str] = Query(None)):
     """
     Restore subtitles from backup
 
@@ -255,7 +262,7 @@ async def restore_subtitles():
     Requires backup to exist (call POST /backup first).
     """
     try:
-        result = subtitle_service.restore_original_subtitles()
+        result = subtitle_service.restore_original_subtitles(video_id=video_id)
         return RestoreResponse(
             success=result["success"],
             restored=result.get("restored", []),

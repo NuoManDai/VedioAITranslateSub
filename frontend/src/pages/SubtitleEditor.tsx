@@ -67,7 +67,7 @@ export default function SubtitleEditor() {
     setCurrentTime,
     setIsPlaying,
     setSelectedIndex,
-  } = useSubtitleEditor();
+  } = useSubtitleEditor(id);
 
   // Load video info and subtitles on mount
   useEffect(() => {
@@ -473,6 +473,7 @@ export default function SubtitleEditor() {
               currentTime={currentTime}
               isPlaying={isPlaying}
               selectedIndex={selectedIndex}
+              videoId={id}
               onSeek={handleTimeUpdate}
               onUpdateEntry={updateEntry}
               onAddEntry={addEntry}

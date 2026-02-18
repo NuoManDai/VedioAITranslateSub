@@ -15,7 +15,13 @@ import logging
 import threading
 
 from models import ProcessingJob, Video
-from api.deps import get_app_state, get_output_dir, get_project_root, get_log_store
+from api.deps import (
+    get_app_state,
+    get_output_dir,
+    get_video_output_dir,
+    get_project_root,
+    get_log_store,
+)
 from database.video_db import VideoDB
 from services.core_path_manager import setup_video_workspace, teardown_video_workspace
 
@@ -622,8 +628,20 @@ class ProcessingService:
 
         merge_video_audio()
 
-    def detect_unfinished_task(self) -> bool:
+    def _get_check_dir(self, video_id: Optional[str] = None) -> Path:
+        """Get the directory to check for output files.
+
+        When video_id is provided, checks output/{video_id}/ (post-teardown location).
+        Otherwise checks the global output/ directory (during active processing).
+        """
+        if video_id:
+            return get_video_output_dir(video_id)
+        return self.output_dir
+
+    def detect_unfinished_task(self, video_id: Optional[str] = None) -> bool:
         """Detect if there's an unfinished task based on output directory state"""
+        check_dir = self._get_check_dir(video_id)
+
         # Check for intermediate files that indicate incomplete processing
         markers = [
             "trans_subs_for_audio.json",  # Created during subtitle processing
@@ -631,21 +649,24 @@ class ProcessingService:
         ]
 
         for marker in markers:
-            if (self.output_dir / marker).exists():
+            if (check_dir / marker).exists():
                 # Check if final output exists
-                final_outputs = list(self.output_dir.glob("*_with_*.mp4"))
+                final_outputs = list(check_dir.glob("*_with_*.mp4"))
                 if not final_outputs:
                     return True
 
         return False
 
-    def detect_completed_stages(self, job_type: str = "subtitle") -> dict:
+    def detect_completed_stages(
+        self, job_type: str = "subtitle", video_id: Optional[str] = None
+    ) -> dict:
         """
         Detect which stages are completed based on output files.
         Used to restore state after manual processing or server restart.
 
         Args:
             job_type: 'subtitle' or 'dubbing'
+            video_id: Optional video ID to check output/{video_id}/ directory
 
         Returns:
             dict with stage names and their completion status
@@ -675,6 +696,7 @@ class ProcessingService:
             ]
 
         project_root = get_project_root()
+        check_dir = self._get_check_dir(video_id)
 
         for stage_name in stage_order:
             if stage_name not in STAGE_OUTPUT_FILES:
@@ -686,7 +708,18 @@ class ProcessingService:
             has_output = False
 
             for file_def in stage_files:
-                file_path = project_root / file_def["path"]
+                # Resolve path: replace "output/" prefix with video-specific dir if needed
+                if video_id:
+                    relative_path = file_def["path"]
+                    # Replace leading "output/" with "output/{video_id}/"
+                    if relative_path.startswith("output/"):
+                        relative_path = (
+                            f"output/{video_id}/{relative_path[len('output/') :]}"
+                        )
+                    file_path = project_root / relative_path
+                else:
+                    file_path = project_root / file_def["path"]
+
                 if file_def["type"] == "folder":
                     # For folders, check if folder exists and has content
                     if file_path.exists() and file_path.is_dir():
@@ -702,22 +735,22 @@ class ProcessingService:
 
         return completed_stages
 
-    def is_subtitle_processing_completed(self) -> bool:
+    def is_subtitle_processing_completed(self, video_id: Optional[str] = None) -> bool:
         """Check if subtitle processing has been completed"""
-        # Check if final subtitle files exist
-        src_srt = self.output_dir / "src.srt"
-        trans_srt = self.output_dir / "trans.srt"
+        check_dir = self._get_check_dir(video_id)
+        src_srt = check_dir / "src.srt"
+        trans_srt = check_dir / "trans.srt"
         return src_srt.exists() and trans_srt.exists()
 
-    def is_dubbing_processing_completed(self) -> bool:
+    def is_dubbing_processing_completed(self, video_id: Optional[str] = None) -> bool:
         """Check if dubbing processing has been completed"""
-        # Check if final dubbing file exists
-        dub_mp3 = self.output_dir / "dub.mp3"
-        output_dub = self.output_dir / "output_dub.mp4"
+        check_dir = self._get_check_dir(video_id)
+        dub_mp3 = check_dir / "dub.mp3"
+        output_dub = check_dir / "output_dub.mp4"
         return dub_mp3.exists() or output_dub.exists()
 
     def restore_job_state(
-        self, job_type: str = "subtitle"
+        self, job_type: str = "subtitle", video_id: Optional[str] = None
     ) -> Optional["ProcessingJob"]:
         """
         Restore job state from output files.
@@ -725,6 +758,7 @@ class ProcessingService:
 
         Args:
             job_type: 'subtitle' or 'dubbing'
+            video_id: Optional video ID to check in output/{video_id}/ directory
 
         Returns:
             ProcessingJob if state can be restored, None otherwise
@@ -733,20 +767,20 @@ class ProcessingService:
         from models import ProcessingJob
 
         if job_type == "subtitle":
-            if not self.is_subtitle_processing_completed():
+            if not self.is_subtitle_processing_completed(video_id):
                 return None
             stages = get_subtitle_stages()
         else:
-            if not self.is_dubbing_processing_completed():
+            if not self.is_dubbing_processing_completed(video_id):
                 return None
             stages = get_dubbing_stages()
 
-        completed_stages = self.detect_completed_stages(job_type)
+        completed_stages = self.detect_completed_stages(job_type, video_id)
 
         # Create a job with restored state
         job = ProcessingJob(
             id=f"restored_{job_type}_{int(time.time())}",
-            video_id="restored",
+            video_id=video_id or "restored",
             job_type=job_type,
             status="completed",
             stages=stages,
@@ -759,7 +793,7 @@ class ProcessingService:
 
         return job
 
-    def cleanup_subtitle_files(self) -> dict:
+    def cleanup_subtitle_files(self, video_id: Optional[str] = None) -> dict:
         """
         Clean up subtitle processing intermediate files
 
@@ -767,15 +801,21 @@ class ProcessingService:
         - output/log/ directory
         - output/gpt_log/ directory
         - *.srt files in output/
+        - intermediate JSON files
 
         Preserves:
         - audio/raw.mp3
+
+        Args:
+            video_id: When provided, cleans output/{video_id}/ instead of output/
         """
         cleaned_paths = []
         preserved_paths = []
 
+        target_dir = self._get_check_dir(video_id)
+
         # Clean log directory
-        log_dir = self.output_dir / "log"
+        log_dir = target_dir / "log"
         if log_dir.exists():
             import shutil
 
@@ -783,7 +823,7 @@ class ProcessingService:
             cleaned_paths.append(str(log_dir))
 
         # Clean gpt_log directory
-        gpt_log_dir = self.output_dir / "gpt_log"
+        gpt_log_dir = target_dir / "gpt_log"
         if gpt_log_dir.exists():
             import shutil
 
@@ -791,7 +831,7 @@ class ProcessingService:
             cleaned_paths.append(str(gpt_log_dir))
 
         # Clean SRT files
-        for srt_file in self.output_dir.glob("*.srt"):
+        for srt_file in target_dir.glob("*.srt"):
             srt_file.unlink()
             cleaned_paths.append(str(srt_file))
 
@@ -804,12 +844,12 @@ class ProcessingService:
             "trans_*.json",
         ]
         for pattern in intermediate_files:
-            for f in self.output_dir.glob(pattern):
+            for f in target_dir.glob(pattern):
                 f.unlink()
                 cleaned_paths.append(str(f))
 
         # Preserve raw audio
-        raw_audio = self.output_dir / "audio" / "raw.mp3"
+        raw_audio = target_dir / "audio" / "raw.mp3"
         if raw_audio.exists():
             preserved_paths.append(str(raw_audio))
 
@@ -823,7 +863,7 @@ class ProcessingService:
             "preservedPaths": preserved_paths,
         }
 
-    def cleanup_dubbing_files(self) -> dict:
+    def cleanup_dubbing_files(self, video_id: Optional[str] = None) -> dict:
         """
         Clean up dubbing processing intermediate files
 
@@ -831,11 +871,15 @@ class ProcessingService:
         - audio/segs/ directory
         - audio/refers/ directory
         - audio/tmp/ directory
+
+        Args:
+            video_id: When provided, cleans output/{video_id}/ instead of output/
         """
         cleaned_paths = []
         preserved_paths = []
 
-        audio_dir = self.output_dir / "audio"
+        target_dir = self._get_check_dir(video_id)
+        audio_dir = target_dir / "audio"
 
         # Clean segs directory
         segs_dir = audio_dir / "segs"
@@ -862,11 +906,11 @@ class ProcessingService:
             cleaned_paths.append(str(tmp_dir))
 
         # Clean audio task and dub-related JSONs
-        for json_file in self.output_dir.glob("audio_task*.json"):
+        for json_file in target_dir.glob("audio_task*.json"):
             json_file.unlink()
             cleaned_paths.append(str(json_file))
 
-        for json_file in self.output_dir.glob("*_dubbed*.json"):
+        for json_file in target_dir.glob("*_dubbed*.json"):
             json_file.unlink()
             cleaned_paths.append(str(json_file))
 
@@ -885,7 +929,7 @@ class ProcessingService:
             "preservedPaths": preserved_paths,
         }
 
-    def cleanup_all_files(self) -> dict:
+    def cleanup_all_files(self, video_id: Optional[str] = None) -> dict:
         """
         Clean up ALL processing files and reset to initial state
 
@@ -896,63 +940,66 @@ class ProcessingService:
         - All *.srt, output*.mp4 (output videos only), *.xlsx, *.json, *.mp3 files
 
         IMPORTANT: Original video files are preserved!
+
+        Args:
+            video_id: When provided, cleans output/{video_id}/ instead of output/
         """
         import shutil
 
         cleaned_paths = []
         preserved_paths = []
 
-        # Use unified output directory (project_root/output/)
-        output_dir = self.output_dir
+        # Use per-video directory when video_id is provided
+        target_dir = self._get_check_dir(video_id)
 
-        if not output_dir.exists():
+        if not target_dir.exists():
             return {"success": True, "cleanedPaths": [], "preservedPaths": []}
 
         # First, identify and preserve original video files (any .mp4 not starting with "output")
-        for video_file in output_dir.glob("*.mp4"):
+        for video_file in target_dir.glob("*.mp4"):
             if not video_file.name.startswith("output"):
                 preserved_paths.append(str(video_file))
 
         # Clean log directory
-        log_dir = output_dir / "log"
+        log_dir = target_dir / "log"
         if log_dir.exists():
             shutil.rmtree(log_dir)
             cleaned_paths.append(str(log_dir))
 
         # Clean gpt_log directory
-        gpt_log_dir = output_dir / "gpt_log"
+        gpt_log_dir = target_dir / "gpt_log"
         if gpt_log_dir.exists():
             shutil.rmtree(gpt_log_dir)
             cleaned_paths.append(str(gpt_log_dir))
 
         # Clean entire audio directory
-        audio_dir = output_dir / "audio"
+        audio_dir = target_dir / "audio"
         if audio_dir.exists():
             shutil.rmtree(audio_dir)
             cleaned_paths.append(str(audio_dir))
 
         # Clean SRT files
-        for srt_file in output_dir.glob("*.srt"):
+        for srt_file in target_dir.glob("*.srt"):
             srt_file.unlink()
             cleaned_paths.append(str(srt_file))
 
         # Clean output video files ONLY (files starting with "output")
-        for video_file in output_dir.glob("output*.mp4"):
+        for video_file in target_dir.glob("output*.mp4"):
             video_file.unlink()
             cleaned_paths.append(str(video_file))
 
         # Clean Excel files
-        for xlsx_file in output_dir.glob("*.xlsx"):
+        for xlsx_file in target_dir.glob("*.xlsx"):
             xlsx_file.unlink()
             cleaned_paths.append(str(xlsx_file))
 
         # Clean JSON files
-        for json_file in output_dir.glob("*.json"):
+        for json_file in target_dir.glob("*.json"):
             json_file.unlink()
             cleaned_paths.append(str(json_file))
 
         # Clean MP3 files in root output dir (dub.mp3 etc)
-        for mp3_file in output_dir.glob("*.mp3"):
+        for mp3_file in target_dir.glob("*.mp3"):
             mp3_file.unlink()
             cleaned_paths.append(str(mp3_file))
 

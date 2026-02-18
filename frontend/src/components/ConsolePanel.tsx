@@ -14,6 +14,7 @@ const { Text } = Typography
 interface ConsolePanelProps {
   isProcessing?: boolean
   className?: string
+  videoId?: string
 }
 
 const POLL_INTERVAL = 3000 // 3 seconds
@@ -48,7 +49,7 @@ const LogSourceTag = ({ source }: { source?: string }) => {
   )
 }
 
-export default function ConsolePanel({ isProcessing = false, className = '' }: ConsolePanelProps) {
+export default function ConsolePanel({ isProcessing = false, className = '', videoId }: ConsolePanelProps) {
   const { t } = useTranslation()
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [levelFilter, setLevelFilter] = useState<LogLevel | 'ALL'>('ALL')
@@ -78,6 +79,7 @@ export default function ConsolePanel({ isProcessing = false, className = '' }: C
         limit: 100,
         level: effectiveLevel !== 'ALL' ? effectiveLevel : undefined,
         source: effectiveSource !== 'ALL' ? effectiveSource : undefined,
+        videoId,
       })
       
       if (response.logs.length > 0) {
@@ -103,7 +105,7 @@ export default function ConsolePanel({ isProcessing = false, className = '' }: C
     } finally {
       fetchingRef.current = false
     }
-  }, [levelFilter, sourceFilter])
+  }, [levelFilter, sourceFilter, videoId])
 
   // Single effect for both initial fetch and polling
   useEffect(() => {

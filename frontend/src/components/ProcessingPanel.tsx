@@ -89,7 +89,7 @@ export default function ProcessingPanel({
     setPolling(true)
     const pollStatus = async () => {
       try {
-        const newStatus = await getProcessingStatus()
+        const newStatus = await getProcessingStatus(video.id)
         setStatus(newStatus)
         onStatusUpdate?.(newStatus)
       } catch (error) {
@@ -99,12 +99,12 @@ export default function ProcessingPanel({
 
     const interval = setInterval(pollStatus, POLL_INTERVAL)
     return () => clearInterval(interval)
-  }, [isProcessing, onStatusUpdate])
+  }, [isProcessing, onStatusUpdate, video.id])
 
   const handleStartSubtitle = async () => {
     try {
-      await startSubtitleProcessing()
-      const newStatus = await getProcessingStatus()
+      await startSubtitleProcessing(video.id)
+      const newStatus = await getProcessingStatus(video.id)
       setStatus(newStatus)
       onStatusUpdate?.(newStatus)
     } catch (error) {
@@ -114,8 +114,8 @@ export default function ProcessingPanel({
 
   const handleStartDubbing = async () => {
     try {
-      await startDubbingProcessing()
-      const newStatus = await getProcessingStatus()
+      await startDubbingProcessing(video.id)
+      const newStatus = await getProcessingStatus(video.id)
       setStatus(newStatus)
       onStatusUpdate?.(newStatus)
     } catch (error) {
@@ -126,7 +126,7 @@ export default function ProcessingPanel({
   const handleCancel = async () => {
     try {
       await cancelProcessing()
-      const newStatus = await getProcessingStatus()
+      const newStatus = await getProcessingStatus(video.id)
       setStatus(newStatus)
       onStatusUpdate?.(newStatus)
       message.success(t('success'))
@@ -143,8 +143,8 @@ export default function ProcessingPanel({
       cancelText: t('no'),
       onOk: async () => {
         try {
-          await cleanupSubtitleFiles()
-          const newStatus = await getProcessingStatus()
+          await cleanupSubtitleFiles(video.id)
+          const newStatus = await getProcessingStatus(video.id)
           setStatus(newStatus)
           onStatusUpdate?.(newStatus)
           message.success(t('cleanupSuccess'))
@@ -163,8 +163,8 @@ export default function ProcessingPanel({
       cancelText: t('no'),
       onOk: async () => {
         try {
-          await cleanupDubbingFiles()
-          const newStatus = await getProcessingStatus()
+          await cleanupDubbingFiles(video.id)
+          const newStatus = await getProcessingStatus(video.id)
           setStatus(newStatus)
           onStatusUpdate?.(newStatus)
           message.success(t('cleanupSuccess'))
@@ -184,8 +184,8 @@ export default function ProcessingPanel({
       okButtonProps: { danger: true },
       onOk: async () => {
         try {
-          await cleanupAllFiles()
-          const newStatus = await getProcessingStatus()
+          await cleanupAllFiles(video.id)
+          const newStatus = await getProcessingStatus(video.id)
           setStatus(newStatus)
           onStatusUpdate?.(newStatus)
           message.success(t('cleanupAllSuccess') || '已清理所有缓存，可以重新开始处理')
@@ -277,7 +277,7 @@ export default function ProcessingPanel({
 
         {/* Show output files for completed stages */}
         {showOutputFiles && stages.some(s => s.status === 'completed') && (
-          <StageOutputFiles stages={stages} />
+          <StageOutputFiles stages={stages} videoId={video.id} />
         )}
       </div>
     )

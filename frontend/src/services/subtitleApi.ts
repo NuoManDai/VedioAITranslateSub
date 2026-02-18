@@ -74,17 +74,20 @@ async function fetchApi<T>(
 /**
  * Get all subtitles for editing
  */
-export async function getSubtitles(): Promise<SubtitleDataResponse> {
-  return fetchApi<SubtitleDataResponse>('/subtitles');
+export async function getSubtitles(videoId?: string): Promise<SubtitleDataResponse> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<SubtitleDataResponse>(`/subtitles${params}`);
 }
 
 /**
  * Save edited subtitles to all SRT files
  */
 export async function saveSubtitles(
-  entries: SubtitleEntry[]
+  entries: SubtitleEntry[],
+  videoId?: string
 ): Promise<SaveSubtitlesResponse> {
-  return fetchApi<SaveSubtitlesResponse>('/subtitles', {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<SaveSubtitlesResponse>(`/subtitles${params}`, {
     method: 'PUT',
     body: JSON.stringify({ entries }),
   });
@@ -99,9 +102,11 @@ export type SubtitleMergeType = 'dual' | 'trans_only' | 'src_only' | 'trans_src'
  * Merge subtitles into video
  */
 export async function mergeSubtitlesToVideo(
-  subtitleType: SubtitleMergeType = 'dual'
+  subtitleType: SubtitleMergeType = 'dual',
+  videoId?: string
 ): Promise<MergeVideoResponse> {
-  return fetchApi<MergeVideoResponse>('/subtitles/merge-video', {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<MergeVideoResponse>(`/subtitles/merge-video${params}`, {
     method: 'POST',
     body: JSON.stringify({ subtitleType }),
   });
@@ -110,8 +115,9 @@ export async function mergeSubtitlesToVideo(
 /**
  * Get audio stream URL for waveform visualization
  */
-export function getAudioStreamUrl(): string {
-  return `${API_BASE_URL}/subtitles/audio`;
+export function getAudioStreamUrl(videoId?: string): string {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return `${API_BASE_URL}/subtitles/audio${params}`;
 }
 
 // ============ Backup & Restore API ============
@@ -137,8 +143,9 @@ export interface HasBackupResponse {
 /**
  * Backup current subtitles (before user edits)
  */
-export async function backupSubtitles(): Promise<BackupResponse> {
-  return fetchApi<BackupResponse>('/subtitles/backup', {
+export async function backupSubtitles(videoId?: string): Promise<BackupResponse> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<BackupResponse>(`/subtitles/backup${params}`, {
     method: 'POST',
   });
 }
@@ -146,15 +153,17 @@ export async function backupSubtitles(): Promise<BackupResponse> {
 /**
  * Check if subtitle backup exists
  */
-export async function hasSubtitleBackup(): Promise<HasBackupResponse> {
-  return fetchApi<HasBackupResponse>('/subtitles/has-backup');
+export async function hasSubtitleBackup(videoId?: string): Promise<HasBackupResponse> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<HasBackupResponse>(`/subtitles/has-backup${params}`);
 }
 
 /**
  * Restore subtitles from backup
  */
-export async function restoreSubtitles(): Promise<RestoreResponse> {
-  return fetchApi<RestoreResponse>('/subtitles/restore', {
+export async function restoreSubtitles(videoId?: string): Promise<RestoreResponse> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<RestoreResponse>(`/subtitles/restore${params}`, {
     method: 'POST',
   });
 }

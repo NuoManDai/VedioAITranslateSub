@@ -9,7 +9,6 @@ import LanguageSwitch from './components/LanguageSwitch'
 const Home = lazy(() => import('./pages/Home'))
 const VideoList = lazy(() => import('./pages/VideoList'))
 const SubtitleEditor = lazy(() => import('./pages/SubtitleEditor'))
-const BatchUpload = lazy(() => import('./pages/BatchUpload'))
 const SettingsModal = lazy(() => import('./components/SettingsModal'))
 
 const { Header, Content, Footer } = Layout
@@ -98,11 +97,6 @@ function App() {
         <Route path="/video/:id/editor" element={
           <Suspense fallback={<LoadingFallback />}>
             <SubtitleEditor />
-          </Suspense>
-        } />
-        <Route path="/batch" element={
-          <Suspense fallback={<LoadingFallback />}>
-            <BatchUpload />
           </Suspense>
         } />
       </Routes>

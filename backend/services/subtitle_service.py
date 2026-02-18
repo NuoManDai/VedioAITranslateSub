@@ -11,7 +11,7 @@ from typing import List, Optional
 from dataclasses import dataclass
 from datetime import timedelta
 
-from api.deps import get_output_dir, get_project_root
+from api.deps import get_output_dir, get_video_output_dir, get_project_root
 
 logger = logging.getLogger(__name__)
 
@@ -167,7 +167,13 @@ class SubtitleService:
 
     # ========== Multi-file Operations ==========
 
-    def get_all_subtitles(self) -> dict:
+    def _resolve_output_dir(self, video_id: Optional[str] = None) -> Path:
+        """Resolve output directory based on video_id"""
+        if video_id:
+            return get_video_output_dir(video_id)
+        return self.output_dir
+
+    def get_all_subtitles(self, video_id: Optional[str] = None) -> dict:
         """
         Get all subtitle files data
 
@@ -175,10 +181,11 @@ class SubtitleService:
         - entries: List of unified subtitle entries (using trans_src as base)
         - files: Dict of file paths and their existence status
         """
-        src_srt = self.output_dir / "src.srt"
-        trans_srt = self.output_dir / "trans.srt"
-        trans_src_srt = self.output_dir / "trans_src.srt"
-        src_trans_srt = self.output_dir / "src_trans.srt"
+        output_dir = self._resolve_output_dir(video_id)
+        src_srt = output_dir / "src.srt"
+        trans_srt = output_dir / "trans.srt"
+        trans_src_srt = output_dir / "trans_src.srt"
+        src_trans_srt = output_dir / "src_trans.srt"
 
         files_status = {
             "src": {"path": str(src_srt), "exists": src_srt.exists()},
@@ -215,7 +222,9 @@ class SubtitleService:
 
         return {"entries": entries, "files": files_status, "totalCount": len(entries)}
 
-    def save_all_subtitles(self, entries: List[SubtitleEntry]) -> dict:
+    def save_all_subtitles(
+        self, entries: List[SubtitleEntry], video_id: Optional[str] = None
+    ) -> dict:
         """
         Save subtitle entries to all SRT files
 
@@ -225,14 +234,16 @@ class SubtitleService:
         - trans_src.srt: Translation + Original (line by line)
         - src_trans.srt: Original + Translation (line by line)
         """
+        output_dir = self._resolve_output_dir(video_id)
+
         # Reindex entries
         for i, entry in enumerate(entries, 1):
             entry.index = i
 
-        src_srt = self.output_dir / "src.srt"
-        trans_srt = self.output_dir / "trans.srt"
-        trans_src_srt = self.output_dir / "trans_src.srt"
-        src_trans_srt = self.output_dir / "src_trans.srt"
+        src_srt = output_dir / "src.srt"
+        trans_srt = output_dir / "trans.srt"
+        trans_src_srt = output_dir / "trans_src.srt"
+        src_trans_srt = output_dir / "src_trans.srt"
 
         saved_files = []
 
@@ -291,7 +302,9 @@ class SubtitleService:
 
     # ========== Merge to Video ==========
 
-    def merge_subtitles_to_video(self, subtitle_type: str = "dual") -> dict:
+    def merge_subtitles_to_video(
+        self, subtitle_type: str = "dual", video_id: Optional[str] = None
+    ) -> dict:
         """
         Manually trigger subtitle merge to video
 
@@ -302,6 +315,8 @@ class SubtitleService:
         - "trans_src": trans_src.srt (single file with both languages)
         - "src_trans": src_trans.srt (single file with both languages, reversed order)
         """
+        output_dir = self._resolve_output_dir(video_id)
+
         import sys
 
         project_root = get_project_root()
@@ -317,21 +332,25 @@ class SubtitleService:
                 core_merge()
             elif subtitle_type == "trans_only":
                 # Only translation: temporarily copy trans.srt to both
-                self._merge_with_single_subtitle("trans.srt", is_translation=True)
+                self._merge_with_single_subtitle(
+                    "trans.srt", is_translation=True, output_dir=output_dir
+                )
             elif subtitle_type == "src_only":
                 # Only source: temporarily copy src.srt to both
-                self._merge_with_single_subtitle("src.srt", is_translation=False)
+                self._merge_with_single_subtitle(
+                    "src.srt", is_translation=False, output_dir=output_dir
+                )
             elif subtitle_type == "trans_src":
                 # Single bilingual file: trans_src.srt
-                self._merge_with_bilingual_file("trans_src.srt")
+                self._merge_with_bilingual_file("trans_src.srt", output_dir=output_dir)
             elif subtitle_type == "src_trans":
                 # Single bilingual file: src_trans.srt (reversed order)
-                self._merge_with_bilingual_file("src_trans.srt")
+                self._merge_with_bilingual_file("src_trans.srt", output_dir=output_dir)
             else:
                 # Fallback to default
                 core_merge()
 
-            output_video = self.output_dir / "output_sub.mp4"
+            output_video = output_dir / "output_sub.mp4"
 
             return {
                 "success": True,
@@ -358,7 +377,9 @@ class SubtitleService:
             escaped = escaped[0] + "\\:" + escaped[2:]
         return escaped
 
-    def _merge_with_single_subtitle(self, srt_filename: str, is_translation: bool):
+    def _merge_with_single_subtitle(
+        self, srt_filename: str, is_translation: bool, output_dir: Optional[Path] = None
+    ):
         """Merge video with a single subtitle file (either src or trans only)"""
         import subprocess
         import time
@@ -367,9 +388,12 @@ class SubtitleService:
         from core.utils import load_key
         from core._7_sub_into_vid import get_subtitle_style
 
+        if output_dir is None:
+            output_dir = self.output_dir
+
         video_file = find_video_files()
-        srt_path = self.output_dir / srt_filename
-        output_video = self.output_dir / "output_sub.mp4"
+        srt_path = output_dir / srt_filename
+        output_video = output_dir / "output_sub.mp4"
 
         if not srt_path.exists():
             raise FileNotFoundError(f"Subtitle file not found: {srt_path}")
@@ -432,7 +456,9 @@ class SubtitleService:
                 f"FFmpeg execution failed: {stderr.decode('utf-8', errors='ignore')[:500]}"
             )
 
-    def _merge_with_bilingual_file(self, srt_filename: str):
+    def _merge_with_bilingual_file(
+        self, srt_filename: str, output_dir: Optional[Path] = None
+    ):
         """Merge video with a single bilingual subtitle file"""
         import subprocess
         import cv2
@@ -440,9 +466,12 @@ class SubtitleService:
         from core.utils import load_key
         from core._7_sub_into_vid import get_subtitle_style
 
+        if output_dir is None:
+            output_dir = self.output_dir
+
         video_file = find_video_files()
-        srt_path = self.output_dir / srt_filename
-        output_video = self.output_dir / "output_sub.mp4"
+        srt_path = output_dir / srt_filename
+        output_video = output_dir / "output_sub.mp4"
 
         if not srt_path.exists():
             raise FileNotFoundError(f"Subtitle file not found: {srt_path}")
@@ -504,12 +533,13 @@ class SubtitleService:
 
     # ========== Audio Stream ==========
 
-    def get_audio_path(self) -> Optional[Path]:
+    def get_audio_path(self, video_id: Optional[str] = None) -> Optional[Path]:
         """Get path to audio file for waveform generation"""
+        output_dir = self._resolve_output_dir(video_id)
         # Prefer raw/original audio for waveform display
         # This shows the complete audio track including background music
-        raw_audio = self.output_dir / "audio" / "raw.mp3"
-        vocal_audio = self.output_dir / "audio" / "vocal.mp3"
+        raw_audio = output_dir / "audio" / "raw.mp3"
+        vocal_audio = output_dir / "audio" / "vocal.mp3"
 
         if raw_audio.exists():
             return raw_audio
@@ -520,18 +550,20 @@ class SubtitleService:
 
     # ========== Backup & Restore ==========
 
-    def get_backup_dir(self) -> Path:
+    def get_backup_dir(self, video_id: Optional[str] = None) -> Path:
         """Get backup directory path"""
-        return self.output_dir / "backup"
+        output_dir = self._resolve_output_dir(video_id)
+        return output_dir / "backup"
 
-    def backup_original_subtitles(self) -> dict:
+    def backup_original_subtitles(self, video_id: Optional[str] = None) -> dict:
         """
         Backup original subtitle files after generation (before any edits)
 
         Creates backup directory and copies all SRT files there.
         Only creates backup if it doesn't already exist (preserves original).
         """
-        backup_dir = self.get_backup_dir()
+        output_dir = self._resolve_output_dir(video_id)
+        backup_dir = self.get_backup_dir(video_id)
 
         # List of files to backup
         srt_files = ["src.srt", "trans.srt", "trans_src.srt", "src_trans.srt"]
@@ -539,7 +571,7 @@ class SubtitleService:
         skipped = []
 
         for filename in srt_files:
-            src_file = self.output_dir / filename
+            src_file = output_dir / filename
             backup_file = backup_dir / filename
 
             if not src_file.exists():
@@ -565,23 +597,24 @@ class SubtitleService:
             "backupDir": str(backup_dir),
         }
 
-    def has_backup(self) -> bool:
+    def has_backup(self, video_id: Optional[str] = None) -> bool:
         """Check if backup exists"""
-        backup_dir = self.get_backup_dir()
+        backup_dir = self.get_backup_dir(video_id)
         if not backup_dir.exists():
             return False
 
         # Check if at least trans_src.srt backup exists
         return (backup_dir / "trans_src.srt").exists()
 
-    def restore_original_subtitles(self) -> dict:
+    def restore_original_subtitles(self, video_id: Optional[str] = None) -> dict:
         """
         Restore subtitle files from backup
 
         Copies all backed up SRT files back to output directory,
         overwriting any user edits.
         """
-        backup_dir = self.get_backup_dir()
+        output_dir = self._resolve_output_dir(video_id)
+        backup_dir = self.get_backup_dir(video_id)
 
         if not backup_dir.exists():
             return {
@@ -596,7 +629,7 @@ class SubtitleService:
 
         for filename in srt_files:
             backup_file = backup_dir / filename
-            dest_file = self.output_dir / filename
+            dest_file = output_dir / filename
 
             if not backup_file.exists():
                 continue

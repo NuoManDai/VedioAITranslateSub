@@ -50,7 +50,7 @@ interface UseSubtitleEditorReturn {
 
 const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
 
-export function useSubtitleEditor(): UseSubtitleEditorReturn {
+export function useSubtitleEditor(videoId?: string): UseSubtitleEditorReturn {
   const [entries, setEntries] = useState<SubtitleEntry[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -71,11 +71,11 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
     setIsLoading(true);
     try {
       // Always check backup status first
-      const backupStatus = await hasSubtitleBackup();
+      const backupStatus = await hasSubtitleBackup(videoId);
       setHasBackup(backupStatus.hasBackup);
 
       // Always fetch server data first to compare
-      const data = await getSubtitles();
+      const data = await getSubtitles(videoId);
       setFilesInfo(data.files);
 
       // Check for draft (unless force refresh)
@@ -115,7 +115,7 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
 
             // Create backup if not exists (use server data for backup)
             if (!backupStatus.hasBackup && data.entries.length > 0) {
-              await backupSubtitles();
+              await backupSubtitles(videoId);
               setHasBackup(true);
             }
             
@@ -134,7 +134,7 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
 
       // Create backup if not exists
       if (!backupStatus.hasBackup && data.entries.length > 0) {
-        await backupSubtitles();
+        await backupSubtitles(videoId);
         setHasBackup(true);
       }
     } catch (error) {
@@ -142,7 +142,7 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [videoId]);
 
   // Update a single entry
   const updateEntry = useCallback((index: number, changes: Partial<SubtitleEntry>) => {
@@ -180,7 +180,7 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
   const saveToServer = useCallback(async (): Promise<boolean> => {
     setIsSaving(true);
     try {
-      await saveSubtitles(entries);
+      await saveSubtitles(entries, videoId);
       await clearDraft();
       setIsDirty(false);
       message.success('字幕已保存');
@@ -191,7 +191,7 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
     } finally {
       setIsSaving(false);
     }
-  }, [entries]);
+  }, [entries, videoId]);
 
   // Save draft to IndexedDB
   const saveDraftLocal = useCallback(async () => {
@@ -204,7 +204,7 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
   const mergeVideo = useCallback(async (subtitleType: SubtitleMergeType = 'dual'): Promise<boolean> => {
     setIsMerging(true);
     try {
-      const result = await mergeSubtitlesToVideo(subtitleType);
+      const result = await mergeSubtitlesToVideo(subtitleType, videoId);
       if (result.success) {
         message.success('字幕已合并到视频');
         return true;
@@ -218,18 +218,18 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
     } finally {
       setIsMerging(false);
     }
-  }, []);
+  }, [videoId]);
 
   // Restore subtitles to original (from backup)
   const restoreToOriginal = useCallback(async (): Promise<boolean> => {
     setIsRestoring(true);
     try {
-      const result = await restoreSubtitles();
+      const result = await restoreSubtitles(videoId);
       if (result.success) {
         // Clear draft
         await clearDraft();
         // Reload subtitles from server
-        const data = await getSubtitles();
+        const data = await getSubtitles(videoId);
         setEntries(data.entries);
         setFilesInfo(data.files);
         setIsDirty(false);
@@ -245,7 +245,7 @@ export function useSubtitleEditor(): UseSubtitleEditorReturn {
     } finally {
       setIsRestoring(false);
     }
-  }, []);
+  }, [videoId]);
 
   // Seek to time (used by video player)
   const seekTo = useCallback((time: number) => {

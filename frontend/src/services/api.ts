@@ -248,8 +248,9 @@ export function getVideoStreamUrl(videoId: string, withSubtitle: boolean = false
 /**
  * Start subtitle processing
  */
-export async function startSubtitleProcessing(): Promise<ProcessingJob> {
-  return fetchApi<ProcessingJob>('/processing/subtitle/start', {
+export async function startSubtitleProcessing(videoId?: string): Promise<ProcessingJob> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<ProcessingJob>(`/processing/subtitle/start${params}`, {
     method: 'POST',
   });
 }
@@ -257,17 +258,20 @@ export async function startSubtitleProcessing(): Promise<ProcessingJob> {
 /**
  * Start dubbing processing
  */
-export async function startDubbingProcessing(): Promise<ProcessingJob> {
-  return fetchApi<ProcessingJob>('/processing/dubbing/start', {
+export async function startDubbingProcessing(videoId?: string): Promise<ProcessingJob> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<ProcessingJob>(`/processing/dubbing/start${params}`, {
     method: 'POST',
   });
 }
 
 /**
  * Get current processing status
+ * @param videoId - Optional video ID to set as current video in backend
  */
-export async function getProcessingStatus(): Promise<ProcessingStatus> {
-  return fetchApi<ProcessingStatus>('/processing/status');
+export async function getProcessingStatus(videoId?: string): Promise<ProcessingStatus> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<ProcessingStatus>(`/processing/status${params}`);
 }
 
 /**
@@ -282,8 +286,9 @@ export async function cancelProcessing(): Promise<MessageResponse> {
 /**
  * Get SRT download URL
  */
-export function getSrtDownloadUrl(): string {
-  return `${API_BASE_URL}/processing/download/srt`;
+export function getSrtDownloadUrl(videoId?: string): string {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return `${API_BASE_URL}/processing/download/srt${params}`;
 }
 
 // ============ Config API ============
@@ -355,8 +360,9 @@ import type { CleanupResult } from '../types';
 /**
  * Cleanup subtitle processing files
  */
-export async function cleanupSubtitleFiles(): Promise<CleanupResult> {
-  return fetchApi<CleanupResult>('/processing/cleanup/subtitle', {
+export async function cleanupSubtitleFiles(videoId?: string): Promise<CleanupResult> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<CleanupResult>(`/processing/cleanup/subtitle${params}`, {
     method: 'POST',
   });
 }
@@ -364,8 +370,9 @@ export async function cleanupSubtitleFiles(): Promise<CleanupResult> {
 /**
  * Cleanup dubbing processing files
  */
-export async function cleanupDubbingFiles(): Promise<CleanupResult> {
-  return fetchApi<CleanupResult>('/processing/cleanup/dubbing', {
+export async function cleanupDubbingFiles(videoId?: string): Promise<CleanupResult> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<CleanupResult>(`/processing/cleanup/dubbing${params}`, {
     method: 'POST',
   });
 }
@@ -373,8 +380,9 @@ export async function cleanupDubbingFiles(): Promise<CleanupResult> {
 /**
  * Cleanup ALL processing files and restart from beginning
  */
-export async function cleanupAllFiles(): Promise<CleanupResult> {
-  return fetchApi<CleanupResult>('/processing/cleanup/all', {
+export async function cleanupAllFiles(videoId?: string): Promise<CleanupResult> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<CleanupResult>(`/processing/cleanup/all${params}`, {
     method: 'POST',
   });
 }
@@ -388,6 +396,7 @@ export interface LogQueryParams {
   limit?: number;
   level?: LogLevel;
   source?: string;
+  videoId?: string;
 }
 
 /**
@@ -399,6 +408,7 @@ export async function getLogs(params: LogQueryParams = {}): Promise<LogQueryResp
   if (params.limit !== undefined) searchParams.append('limit', params.limit.toString());
   if (params.level) searchParams.append('level', params.level);
   if (params.source) searchParams.append('source', params.source);
+  if (params.videoId) searchParams.append('videoId', params.videoId);
   
   const query = searchParams.toString();
   return fetchApi<LogQueryResponse>(`/logs${query ? `?${query}` : ''}`);
@@ -453,8 +463,9 @@ export interface FolderListResponse {
 /**
  * Get output files for a processing stage
  */
-export async function getStageFiles(stageName: string): Promise<StageFilesResponse> {
-  return fetchApi<StageFilesResponse>(`/files/stage/${stageName}`);
+export async function getStageFiles(stageName: string, videoId?: string): Promise<StageFilesResponse> {
+  const params = videoId ? `?video_id=${videoId}` : '';
+  return fetchApi<StageFilesResponse>(`/files/stage/${stageName}${params}`);
 }
 
 /**

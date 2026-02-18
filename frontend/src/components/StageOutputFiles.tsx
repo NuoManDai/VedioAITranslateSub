@@ -30,6 +30,7 @@ interface StageOutputFilesProps {
     displayName: string
     status: string
   }>
+  videoId?: string
 }
 
 const fileTypeIcons: Record<string, React.ReactNode> = {
@@ -331,10 +332,12 @@ function FolderModal({
 
 function StageFileList({ 
   stageName,
+  videoId,
   onPreviewFile,
   onOpenFolder
 }: { 
   stageName: string
+  videoId?: string
   onPreviewFile: (path: string) => void
   onOpenFolder: (path: string) => void
 }) {
@@ -346,7 +349,7 @@ function StageFileList({
   const loadFiles = async () => {
     setLoading(true)
     try {
-      const result = await getStageFiles(stageName)
+      const result = await getStageFiles(stageName, videoId)
       setFiles(result.files)
       setLoaded(true)
     } catch (err) {
@@ -359,7 +362,7 @@ function StageFileList({
   useEffect(() => {
     // Auto-load when component mounts
     loadFiles()
-  }, [stageName])
+  }, [stageName, videoId])
 
   const existingFiles = files.filter(f => f.exists)
 
@@ -451,7 +454,7 @@ function StageFileList({
   )
 }
 
-export default function StageOutputFiles({ stages }: StageOutputFilesProps) {
+export default function StageOutputFiles({ stages, videoId }: StageOutputFilesProps) {
   const { t } = useTranslation()
   const [previewFile, setPreviewFile] = useState<string | null>(null)
   const [folderPath, setFolderPath] = useState<string | null>(null)
@@ -474,6 +477,7 @@ export default function StageOutputFiles({ stages }: StageOutputFilesProps) {
     children: (
       <StageFileList 
         stageName={stage.name}
+        videoId={videoId}
         onPreviewFile={setPreviewFile}
         onOpenFolder={setFolderPath}
       />

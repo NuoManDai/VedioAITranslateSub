@@ -21,6 +21,7 @@ interface TimelineProps {
   onPlayingChange: (playing: boolean) => void;
   selectedIndex?: number | null;
   onSelectEntry?: (index: number) => void;
+  videoId?: string;
 }
 
 export interface TimelineRef {
@@ -37,6 +38,7 @@ const Timeline = forwardRef<TimelineRef, TimelineProps>(({
   onPlayingChange,
   selectedIndex,
   onSelectEntry,
+  videoId,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
@@ -112,7 +114,7 @@ const Timeline = forwardRef<TimelineRef, TimelineProps>(({
     regionsRef.current = regions;
 
     // Load audio
-    const audioUrl = getAudioStreamUrl();
+    const audioUrl = getAudioStreamUrl(videoId);
     ws.load(audioUrl);
 
     // Event handlers

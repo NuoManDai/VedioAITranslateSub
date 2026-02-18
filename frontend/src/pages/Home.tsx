@@ -10,7 +10,7 @@ import VideoPlayer from '../components/VideoPlayer'
 import ProcessingPanel from '../components/ProcessingPanel'
 import ConsolePanel from '../components/ConsolePanel'
 import type { Video, ProcessingStatus } from '../types'
-import { getVideo, deleteVideo, getProcessingStatus, ApiRequestError } from '../services/api'
+import { getVideo, deleteVideo, getProcessingStatus, cleanupAllFiles, ApiRequestError } from '../services/api'
 
 export default function Home() {
   const { t } = useTranslation()
@@ -38,7 +38,7 @@ export default function Home() {
       setError(null)
       const [currentVideo, processingStatus] = await Promise.all([
         getVideo(id),
-        getProcessingStatus(),
+        getProcessingStatus(id),
       ])
       setVideo(currentVideo)
       setStatus(processingStatus)
@@ -67,8 +67,10 @@ export default function Home() {
       cancelText: t('startOver'),
       onCancel: async () => {
         try {
-          await deleteVideo(id!)
-          navigate('/')
+          await cleanupAllFiles(id!)
+          const newStatus = await getProcessingStatus(id!)
+          setStatus(newStatus)
+          message.success(t('cleanupAllSuccess') || '已清理所有缓存，可以重新开始处理')
         } catch {
           message.error(t('error'))
         }
@@ -178,6 +180,7 @@ export default function Home() {
             status?.subtitleJob?.status === 'running' || 
             status?.dubbingJob?.status === 'running'
           }
+          videoId={video.id}
           className="mt-6"
         />
       )}

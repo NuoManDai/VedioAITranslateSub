@@ -62,7 +62,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 import logging
 
-from api.routes import video, processing, config, logs, files, subtitles, batch
+from api.routes import video, processing, config, logs, files, subtitles
 from database.video_db import VideoDB
 
 # Configure logging
@@ -295,7 +295,6 @@ app.include_router(config.router, prefix="/api/config", tags=["Config"])
 app.include_router(logs.router, prefix="/api/logs", tags=["Logs"])
 app.include_router(files.router, prefix="/api", tags=["Files"])
 app.include_router(subtitles.router, prefix="/api/subtitles", tags=["Subtitles"])
-app.include_router(batch.router, prefix="/api/batch", tags=["Batch"])
 
 
 @app.get("/", tags=["Health"])

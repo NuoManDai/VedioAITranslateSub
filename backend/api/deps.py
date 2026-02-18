@@ -3,11 +3,11 @@ API dependencies injection module
 """
 
 from pathlib import Path
-from typing import Generator, TYPE_CHECKING
-import os
+from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from services.log_service import LogStore
+    from models import ProcessingJob
 
 # Project root directory (videoLongo/)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -68,6 +68,8 @@ class AppState:
         self.dubbing_job = None
         self._cancel_requested = False
         self._log_store = None
+        # Per-video job cache: { video_id: { "subtitle_job": ..., "dubbing_job": ... } }
+        self._video_jobs: dict[str, dict[str, Optional["ProcessingJob"]]] = {}
 
     @property
     def log_store(self) -> "LogStore":
@@ -78,12 +80,46 @@ class AppState:
             self._log_store = LogStore()
         return self._log_store
 
+    def get_subtitle_job(self, video_id: str) -> Optional["ProcessingJob"]:
+        """Get subtitle job for a specific video.
+        Returns the active job if it matches, otherwise checks the cache."""
+        if (
+            self.subtitle_job
+            and getattr(self.subtitle_job, "video_id", None) == video_id
+        ):
+            return self.subtitle_job
+        return self._video_jobs.get(video_id, {}).get("subtitle_job")
+
+    def get_dubbing_job(self, video_id: str) -> Optional["ProcessingJob"]:
+        """Get dubbing job for a specific video.
+        Returns the active job if it matches, otherwise checks the cache."""
+        if self.dubbing_job and getattr(self.dubbing_job, "video_id", None) == video_id:
+            return self.dubbing_job
+        return self._video_jobs.get(video_id, {}).get("dubbing_job")
+
+    def set_subtitle_job(self, video_id: str, job: Optional["ProcessingJob"]) -> None:
+        """Set subtitle job for a specific video into the cache."""
+        if video_id not in self._video_jobs:
+            self._video_jobs[video_id] = {}
+        self._video_jobs[video_id]["subtitle_job"] = job
+
+    def set_dubbing_job(self, video_id: str, job: Optional["ProcessingJob"]) -> None:
+        """Set dubbing job for a specific video into the cache."""
+        if video_id not in self._video_jobs:
+            self._video_jobs[video_id] = {}
+        self._video_jobs[video_id]["dubbing_job"] = job
+
+    def clear_video_jobs(self, video_id: str) -> None:
+        """Clear cached jobs for a specific video."""
+        self._video_jobs.pop(video_id, None)
+
     def reset(self):
         """Reset all state"""
         self.current_video = None
         self.subtitle_job = None
         self.dubbing_job = None
         self._cancel_requested = False
+        self._video_jobs.clear()
         # Don't reset log_store, just clear it
         if self._log_store:
             self._log_store.clear()
