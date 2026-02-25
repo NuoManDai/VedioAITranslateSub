@@ -417,7 +417,7 @@ export default function SubtitleEditor() {
 {videoFilename ? (
                 <VideoSync
                   ref={videoRef}
-                  videoFilename={videoFilename}
+                  videoFilename={id!}
                   currentTime={currentTime}
                   isPlaying={isPlaying}
                   entries={entries}

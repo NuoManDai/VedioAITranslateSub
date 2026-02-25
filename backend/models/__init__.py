@@ -33,14 +33,6 @@ from .tts_config import (
     AzureVoice,
     AzureVoiceListResponse,
 )
-from .batch_models import (
-    BatchJob,
-    BatchFile,
-    BatchFileStatus,
-    BatchJobStatus,
-    BatchFileSettingsUpdate,
-    BatchFileRegister,
-)
 
 __all__ = [
     "Video",
@@ -76,10 +68,4 @@ __all__ = [
     "TTSMethod",
     "AzureVoice",
     "AzureVoiceListResponse",
-    "BatchJob",
-    "BatchFile",
-    "BatchFileStatus",
-    "BatchJobStatus",
-    "BatchFileSettingsUpdate",
-    "BatchFileRegister",
-]
+    ]
