@@ -81,7 +81,7 @@ async def upload_video(file: UploadFile = File(...)):
     Upload a video file.
     Saves to output/{video-id}/, creates DB record, returns video with UUID.
     """
-    allowed_extensions = {".mp4", ".avi", ".mkv", ".mov", ".webm", ".m4v"}
+    allowed_extensions = {".mp4", ".avi", ".mkv", ".mov", ".webm", ".m4v", ".flv", ".wmv", ".ts", ".mpeg", ".mpg", ".3gp", ".rm", ".rmvb", ".vob", ".f4v"}
     file_ext = Path(file.filename or "").suffix.lower()
 
     if file_ext not in allowed_extensions:
@@ -202,6 +202,17 @@ async def stream_video(video_id: str, with_subtitle: bool = False):
         ".avi": "video/x-msvideo",
         ".mkv": "video/x-matroska",
         ".mov": "video/quicktime",
+        ".m4v": "video/mp4",
+        ".flv": "video/x-flv",
+        ".wmv": "video/x-ms-wmv",
+        ".ts": "video/mp2t",
+        ".mpeg": "video/mpeg",
+        ".mpg": "video/mpeg",
+        ".3gp": "video/3gpp",
+        ".rm": "application/vnd.rn-realmedia",
+        ".rmvb": "application/vnd.rn-realmedia-vbr",
+        ".vob": "video/dvd",
+        ".f4v": "video/x-f4v",
     }
 
     suffix = video_path.suffix.lower()

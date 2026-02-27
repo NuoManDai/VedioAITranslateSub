@@ -57,7 +57,7 @@ export default function VideoUpload({ onSuccess }: VideoUploadProps) {
   const handleClick = () => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.accept = 'video/*,.mp4,.avi,.mkv,.mov,.webm'
+    input.accept = 'video/mp4,video/webm,.mkv,.avi,.mov,.flv,.wmv,.ts,.mpeg,.mpg,.3gp,.m4v,.f4v,.rm,.rmvb,.vob'
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (file) handleUpload(file)

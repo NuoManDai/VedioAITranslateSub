@@ -24,7 +24,7 @@ from database.video_db import VideoDB
 logger = logging.getLogger(__name__)
 
 # Video file extensions recognized by the system
-VIDEO_EXTENSIONS = {".mp4", ".webm", ".mkv", ".avi", ".mov", ".m4v"}
+VIDEO_EXTENSIONS = {".mp4", ".webm", ".mkv", ".avi", ".mov", ".m4v", ".flv", ".wmv", ".ts", ".mpeg", ".mpg", ".3gp", ".rm", ".rmvb", ".vob", ".f4v"}
 
 
 def get_video_duration(filepath: Path) -> Optional[float]:
