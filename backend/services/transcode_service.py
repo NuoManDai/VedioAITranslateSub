@@ -12,7 +12,9 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
+import asyncio
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -334,3 +336,113 @@ def _safe_delete(filepath: str, retries: int = 3, delay: float = 0.5) -> None:
                 raise TranscodeError(
                     f"Failed to delete {filepath} after {retries} attempts: {e}"
                 ) from e
+
+
+# ----------------------------
+# Transcode Status Model
+# ----------------------------
+
+
+@dataclass
+class TranscodeStatus:
+    """Tracks the state of a single video transcode job."""
+
+    video_id: str
+    progress: float = 0.0
+    status: str = "pending"  # pending | transcoding | completed | failed
+    error: Optional[str] = None
+    started_at: float = field(default_factory=time.time)
+    completed_at: Optional[float] = None
+
+
+# ----------------------------
+# Concurrency Semaphore
+# ----------------------------
+
+# Module-level semaphore limits maximum concurrent FFmpeg processes
+_transcode_semaphore = asyncio.Semaphore(3)
+
+
+# ----------------------------
+# TranscodeManager
+# ----------------------------
+
+
+class TranscodeManager:
+    """Manages async video transcoding with concurrency control."""
+
+    def __init__(self) -> None:
+        self._tasks: Dict[str, TranscodeStatus] = {}
+        # Callback signature: on_complete(video_id: str, success: bool, new_path: str)
+        self.on_complete: Optional[Callable[[str, bool, str], None]] = None
+
+    def start_transcode(self, video_id: str, input_path: str, output_dir: str) -> None:
+        """Schedule async transcode for video_id. Non-blocking."""
+        status = TranscodeStatus(video_id=video_id)
+        self._tasks[video_id] = status
+        asyncio.create_task(
+            self._run_transcode(video_id, input_path, output_dir)
+        )
+
+    async def _run_transcode(
+        self, video_id: str, input_path: str, output_dir: str
+    ) -> None:
+        """Internal coroutine: run transcode with semaphore and error handling."""
+        status = self._tasks[video_id]
+        new_path = input_path  # default: unchanged (short-circuit case)
+        success = False
+
+        async with _transcode_semaphore:
+            status.status = "transcoding"
+            try:
+
+                def _progress_cb(pct: float) -> None:
+                    status.progress = pct
+
+                # asyncio.to_thread wraps the blocking FFmpeg subprocess call
+                new_path = await asyncio.to_thread(
+                    transcode_to_mp4,
+                    input_path,
+                    output_dir,
+                    _progress_cb,
+                )
+                status.progress = 100.0
+                status.status = "completed"
+                success = True
+
+            except TranscodeError as e:
+                logger.error(
+                    "Transcode failed for video %s: %s", video_id, e
+                )
+                status.status = "failed"
+                status.error = str(e)
+
+            except Exception as e:
+                logger.error(
+                    "Unexpected transcode error for video %s: %s", video_id, e
+                )
+                status.status = "failed"
+                status.error = f"Unexpected error: {e}"
+
+            finally:
+                status.completed_at = time.time()
+
+        # Call on_complete callback OUTSIDE semaphore to avoid holding it during I/O
+        if self.on_complete is not None:
+            try:
+                self.on_complete(video_id, success, new_path)
+            except Exception as e:
+                logger.error(
+                    "on_complete callback error for video %s: %s", video_id, e
+                )
+
+    def get_status(self, video_id: str) -> Optional[TranscodeStatus]:
+        """Get transcode status for a video. Returns None if not tracked."""
+        return self._tasks.get(video_id)
+
+    def get_all_active(self) -> list:
+        """Return all TranscodeStatus entries that are pending or transcoding."""
+        return [
+            s for s in self._tasks.values()
+            if s.status in ("pending", "transcoding")
+        ]
