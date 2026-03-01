@@ -2,9 +2,10 @@
 Processing Service - Business logic for subtitle and dubbing processing
 """
 
-import sys
 import asyncio
 import subprocess
+import sys
+import shutil
 import time
 import re
 import io
@@ -252,6 +253,8 @@ class ProcessingService:
         self.output_dir = get_output_dir()
         self._setup_core_imports()
         self.video_db = VideoDB()
+        self._dubbing_semaphore = asyncio.Semaphore(3)  # max 3 concurrent dubbing jobs
+        self._video_jobs: dict = {}  # track active dubbing jobs per video_id
 
     def _setup_core_imports(self):
         """Setup imports for core modules"""
@@ -384,9 +387,13 @@ class ProcessingService:
         log_store = get_log_store()
         job.start()
 
+        # Check for duplicate submission
+        if video.id in self._video_jobs:
+            raise ValueError(f"Dubbing already in progress for video {video.id}")
+        self._video_jobs[video.id] = job
+
         # Clear BOTH cancel flags at the start (memory + file)
         state.clear_cancel_request()  # Clear in-memory flag
-        clear_cancel_flag()  # Clear file-based flag
 
         # Log pipeline start
         log_store.info(
@@ -394,87 +401,115 @@ class ProcessingService:
             source="dubbing",
             job_id=job.id,
         )
-
-        try:
-            # Setup workspace: copy video to flat output/
-            setup_video_workspace(video.id, video.filename)
-            workspace_root = get_workspace_root(video.id)
-
-            # Update status in DB
-            self.video_db.update_video_status(video.id, "processing")
-
-            # Stage 1: Audio Task
-            await self._run_stage(
-                job, "audio_task", lambda: self._run_audio_task(workspace_root)
-            )
-            if state.is_cancel_requested():
-                log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
-                return
-
-            # Stage 2: Dub Chunks
-            await self._run_stage(
-                job, "dub_chunks", lambda: self._run_dub_chunks(workspace_root)
-            )
-            if state.is_cancel_requested():
-                log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
-                return
-
-            # Stage 3: Refer Audio
-            await self._run_stage(
-                job, "refer_audio", lambda: self._run_refer_audio(workspace_root)
-            )
-            if state.is_cancel_requested():
-                log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
-                return
-
-            # Stage 4: Generate Audio
-            await self._run_stage(
-                job, "gen_audio", lambda: self._run_gen_audio(workspace_root)
-            )
-            if state.is_cancel_requested():
-                log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
-                return
-
-            # Stage 5: Merge Audio
-            await self._run_stage(
-                job, "merge_audio", lambda: self._run_merge_audio(workspace_root)
-            )
-            if state.is_cancel_requested():
-                log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
-                return
-
-            # Stage 6: Dub to Video
-            await self._run_stage(
-                job, "dub_to_vid", lambda: self._run_dub_to_vid(workspace_root)
-            )
-
-            # Complete
-            job.complete()
-            self.video_db.update_video_status(video.id, "completed")
-            video.status = "completed"  # Keep in-memory sync for backward compat
-            logger.info("Dubbing processing completed successfully")
-            log_store.info(
-                f"配音处理完成 (视频: {video.filename})",
-                source="dubbing",
-                job_id=job.id,
-            )
-
-        except Exception as e:
-            logger.error(f"Dubbing processing failed: {e}", exc_info=True)
-            job.fail(str(e))
-            self.video_db.update_video(video.id, status="error", error_message=str(e))
-            video.status = "error"  # Keep in-memory sync
-            video.error_message = str(e)
-            log_store.error(f"配音处理失败: {str(e)}", source="dubbing", job_id=job.id)
-        finally:
-            # Teardown workspace: move results to output/{video_id}/
+        async with self._dubbing_semaphore:
             try:
-                teardown_video_workspace(video.id, video.filename)
-            except Exception as teardown_err:
-                logger.error(f"Workspace teardown failed: {teardown_err}")
+                # Setup workspace: copy video to flat output/
+                setup_video_workspace(video.id, video.filename)
+                workspace_root = get_workspace_root(video.id)
 
-            state.clear_cancel_request()
-            clear_cancel_flag()  # Also clear file-based flag
+                # Inject latest edited for_audio.srt into workspace before dubbing starts
+                _src = get_video_output_dir(video.id) / "audio" / "trans_subs_for_audio.srt"
+                _dst = workspace_root / "output" / "audio" / "trans_subs_for_audio.srt"
+                if _src.exists():
+                    _dst.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(_src, _dst)
+
+                # Update status in DB
+                self.video_db.update_video_status(video.id, "processing")
+
+                # Stage 1: Audio Task
+                await self._run_stage(
+                    job, "audio_task", lambda: self._run_audio_task(workspace_root)
+                )
+                if state.is_cancel_requested():
+                    log_store.warning(
+                        "配音处理被用户取消", source="dubbing", job_id=job.id
+                    )
+                    return
+
+                # Stage 2: Dub Chunks
+                await self._run_stage(
+                    job, "dub_chunks", lambda: self._run_dub_chunks(workspace_root)
+                )
+                if state.is_cancel_requested():
+                    log_store.warning(
+                        "配音处理被用户取消", source="dubbing", job_id=job.id
+                    )
+                    return
+
+                # Stage 3: Refer Audio
+                await self._run_stage(
+                    job, "refer_audio", lambda: self._run_refer_audio(workspace_root)
+                )
+                if state.is_cancel_requested():
+                    log_store.warning(
+                        "配音处理被用户取消", source="dubbing", job_id=job.id
+                    )
+                    return
+
+                # Stage 4: Generate Audio
+                await self._run_stage(
+                    job, "gen_audio", lambda: self._run_gen_audio(workspace_root)
+                )
+                if state.is_cancel_requested():
+                    log_store.warning(
+                        "配音处理被用户取消", source="dubbing", job_id=job.id
+                    )
+                    return
+
+                # Stage 5: Merge Audio
+                await self._run_stage(
+                    job, "merge_audio", lambda: self._run_merge_audio(workspace_root)
+                )
+                if state.is_cancel_requested():
+                    log_store.warning(
+                        "配音处理被用户取消", source="dubbing", job_id=job.id
+                    )
+                    return
+
+                # Stage 6: Dub to Video
+                await self._run_stage(
+                    job, "dub_to_vid", lambda: self._run_dub_to_vid(workspace_root)
+                )
+
+                # Complete
+                job.complete()
+                self.video_db.update_video_status(video.id, "completed")
+                video.status = "completed"  # Keep in-memory sync for backward compat
+                logger.info("Dubbing processing completed successfully")
+                log_store.info(
+                    f"配音处理完成 (视频: {video.filename})",
+                    source="dubbing",
+                    job_id=job.id,
+                )
+
+            except Exception as e:
+                logger.error(f"Dubbing processing failed: {e}", exc_info=True)
+                job.fail(str(e))
+                self.video_db.update_video(video.id, status="error", error_message=str(e))
+                video.status = "error"  # Keep in-memory sync
+                video.error_message = str(e)
+                log_store.error(
+                    f"配音处理失败: {str(e)}", source="dubbing", job_id=job.id
+                )
+            finally:
+                # Teardown workspace: move results to output/{video_id}/
+                try:
+                    teardown_video_workspace(video.id, video.filename)
+                except Exception as teardown_err:
+                    logger.error(f"Workspace teardown failed: {teardown_err}")
+
+                state.clear_cancel_request()
+
+                # Clear workspace-scoped cancel flag for this video
+                if 'workspace_root' in locals():
+                    try:
+                        cancel_file = workspace_root / "output" / ".cancel_requested"
+                        cancel_file.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+
+                self._video_jobs.pop(video.id, None)
 
     async def _run_stage(self, job: ProcessingJob, stage_name: str, stage_func):
         """Run a single processing stage with output capture"""
