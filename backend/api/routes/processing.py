@@ -146,6 +146,8 @@ async def start_dubbing_processing(
         )
 
         return job
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -269,6 +271,18 @@ async def cancel_processing():
     # Request cancellation - set both in-memory flag and file flag
     state.request_cancel()
     set_cancel_flag()  # Set file-based flag for core modules
+
+    # Also write cancel flag in workspace for active dubbing jobs
+    if state.dubbing_job and state.dubbing_job.status == "running":
+        from services.core_path_manager import get_workspace_root
+        active_vid = state.current_video.id if state.current_video else None
+        if active_vid:
+            workspace_cancel = get_workspace_root(active_vid) / "output" / ".cancel_requested"
+            try:
+                workspace_cancel.parent.mkdir(parents=True, exist_ok=True)
+                workspace_cancel.touch(exist_ok=True)
+            except OSError:
+                pass
 
     # Update job status
     if state.subtitle_job and state.subtitle_job.status == "running":
