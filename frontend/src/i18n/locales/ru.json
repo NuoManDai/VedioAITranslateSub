@@ -164,5 +164,8 @@
     "videoList.sortNameAZ": "Имя А-Я",
     "videoList.sortNameZA": "Имя Я-А",
     "videoList.sortDuration": "Длительность",
-    "videoList.sortBy": "Сортировка"
+    "videoList.sortBy": "Сортировка",
+    "transcoding": "Перекодирование",
+    "transcodingProgress": "Перекодирование {{percent}}%",
+    "transcodeFailed": "Ошибка перекодирования"
 }

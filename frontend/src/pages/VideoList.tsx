@@ -2,7 +2,7 @@
  * VideoList Page - Card grid layout showing all videos
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Card, Tag, Button, Modal, Empty, Row, Col, Typography, Spin, Tooltip, message, Input, Select } from 'antd'
+import { Card, Tag, Button, Modal, Empty, Row, Col, Typography, Spin, Tooltip, message, Input, Select, Progress } from 'antd'
 import {
   PlusOutlined,
   DeleteOutlined,
@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import type { Video, VideoStatus, VideoSourceType } from '@/types'
 import { getVideos, deleteVideo, renameVideo, getVideoThumbnailUrl } from '@/services/api'
+import { useTranscodeStatus } from '@/hooks'
 import VideoUpload from '@/components/VideoUpload'
 
 const { Title, Text } = Typography
@@ -87,6 +88,64 @@ function truncateFilename(filename: string, maxLen: number = 28): string {
     return `${filename.slice(0, nameMaxLen)}...${filename.slice(ext)}`
   }
   return `${filename.slice(0, maxLen - 3)}...`
+}
+
+interface TranscodeProgressOverlayProps {
+  videoId: string;
+  onComplete: () => void;
+}
+
+function TranscodeProgressOverlay({ videoId, onComplete }: TranscodeProgressOverlayProps) {
+  const { status } = useTranscodeStatus({
+    videoId,
+    enabled: true,
+    interval: 3000,
+  })
+  
+  // 转码完成/失败时触发父组件刷新
+  const prevStatusRef = useRef<string>()
+  useEffect(() => {
+    if (
+      prevStatusRef.current !== undefined &&
+      (prevStatusRef.current === 'transcoding' || prevStatusRef.current === 'pending') &&
+      (status?.status === 'completed' || status?.status === 'failed')
+    ) {
+      onComplete()
+    }
+    if (status?.status) {
+      prevStatusRef.current = status.status
+    }
+  }, [status?.status, onComplete])
+  
+  if (!status || (status.status !== 'pending' && status.status !== 'transcoding')) return null
+  
+  const percent = Math.round(status.progress ?? 0)
+  
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: 'rgba(0,0,0,0.55)',
+        padding: '6px 8px 4px',
+      }}
+    >
+      <Progress
+        percent={percent}
+        size="small"
+        status="active"
+        strokeColor="#7c3aed"
+        trailColor="rgba(255,255,255,0.2)"
+        showInfo={false}
+        style={{ margin: 0 }}
+      />
+      <div style={{ color: '#fff', fontSize: 11, textAlign: 'center', marginTop: 2 }}>
+        {percent}%
+      </div>
+    </div>
+  )
 }
 
 // ------------
@@ -467,6 +526,12 @@ export default function VideoList() {
                   >
                     {formatDuration(video.duration)}
                   </div>
+                  {video.status === 'transcoding' && (
+                    <TranscodeProgressOverlay
+                      videoId={video.id}
+                      onComplete={() => fetchVideos(true)}
+                    />
+                  )}
                 </div>
 
                 {/* Card Body */}

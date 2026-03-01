@@ -384,5 +384,8 @@
     "videoList.sortNameAZ": "Name A-Z",
     "videoList.sortNameZA": "Name Z-A",
     "videoList.sortDuration": "Duration",
-    "videoList.sortBy": "Sort"
+    "videoList.sortBy": "Sort",
+    "transcoding": "Transcoding",
+    "transcodingProgress": "Transcoding {{percent}}%",
+    "transcodeFailed": "Transcode failed"
 }

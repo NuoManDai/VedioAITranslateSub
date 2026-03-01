@@ -384,5 +384,8 @@
     "videoList.sortNameAZ": "名称 A-Z",
     "videoList.sortNameZA": "名称 Z-A",
     "videoList.sortDuration": "时长",
-    "videoList.sortBy": "排序"
+    "videoList.sortBy": "排序",
+    "transcoding": "转码中",
+    "transcodingProgress": "转码进度 {{percent}}%",
+    "transcodeFailed": "转码失败"
 }

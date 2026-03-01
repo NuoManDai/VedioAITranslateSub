@@ -164,5 +164,8 @@
     "videoList.sortNameAZ": "Nombre A-Z",
     "videoList.sortNameZA": "Nombre Z-A",
     "videoList.sortDuration": "Duración",
-    "videoList.sortBy": "Ordenar"
+    "videoList.sortBy": "Ordenar",
+    "transcoding": "Transcodificando",
+    "transcodingProgress": "Transcodificando {{percent}}%",
+    "transcodeFailed": "Error de transcodificación"
 }

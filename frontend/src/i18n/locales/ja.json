@@ -164,5 +164,8 @@
     "videoList.sortNameAZ": "名前 A-Z",
     "videoList.sortNameZA": "名前 Z-A",
     "videoList.sortDuration": "再生時間",
-    "videoList.sortBy": "並べ替え"
+    "videoList.sortBy": "並べ替え",
+    "transcoding": "変換中",
+    "transcodingProgress": "変換進度 {{percent}}%",
+    "transcodeFailed": "変換失敗"
 }
