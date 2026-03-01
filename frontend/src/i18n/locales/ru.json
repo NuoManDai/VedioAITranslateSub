@@ -168,5 +168,6 @@
     "transcoding": "Перекодирование",
     "transcodingProgress": "Перекодирование {{percent}}%",
     "transcodeFailed": "Ошибка перекодирования",
-    "transcodeStarted": "Видео транскодируется в фоновом режиме"
+    "transcodeStarted": "Видео транскодируется в фоновом режиме",
+    "transcodeInProgress": "Видео транскодируется, пожалуйста, дождитесь завершения"
 }

@@ -388,5 +388,6 @@
     "transcoding": "Transcoding",
     "transcodingProgress": "Transcoding {{percent}}%",
     "transcodeFailed": "Transcode failed",
-    "transcodeStarted": "Video is being transcoded in the background"
+    "transcodeStarted": "Video is being transcoded in the background",
+    "transcodeInProgress": "Video is being transcoded, please wait until it finishes"
 }

@@ -301,6 +301,11 @@ export default function VideoList() {
   }
 
   const handleCardClick = (videoId: string) => {
+    const video = videos.find(v => v.id === videoId)
+    if (video?.status === 'transcoding') {
+      message.warning(t('transcodeInProgress'))
+      return
+    }
     navigate(`/video/${videoId}`)
   }
 

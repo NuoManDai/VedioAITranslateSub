@@ -168,5 +168,6 @@
     "transcoding": "Transcodificando",
     "transcodingProgress": "Transcodificando {{percent}}%",
     "transcodeFailed": "Error de transcodificación",
-    "transcodeStarted": "El video se está transcodificando en segundo plano"
+    "transcodeStarted": "El video se está transcodificando en segundo plano",
+    "transcodeInProgress": "El video se está transcodificando, por favor espere a que termine"
 }

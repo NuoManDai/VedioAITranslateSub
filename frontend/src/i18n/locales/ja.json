@@ -168,5 +168,6 @@
     "transcoding": "変換中",
     "transcodingProgress": "変換進度 {{percent}}%",
     "transcodeFailed": "変換失敗",
-    "transcodeStarted": "動画はバックグラウンドで変換されています"
+    "transcodeStarted": "動画はバックグラウンドで変換されています",
+    "transcodeInProgress": "動画は変換中です。完了するまでお待ちください"
 }

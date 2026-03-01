@@ -388,5 +388,6 @@
     "transcoding": "转码中",
     "transcodingProgress": "转码进度 {{percent}}%",
     "transcodeFailed": "转码失败",
-    "transcodeStarted": "视频正在后台转码，请稍候"
+    "transcodeStarted": "视频正在后台转码，请稍候",
+    "transcodeInProgress": "视频正在转码中，请等待转码完成后再操作"
 }

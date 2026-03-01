@@ -168,5 +168,6 @@
     "transcoding": "Transcodage",
     "transcodingProgress": "Transcodage {{percent}}%",
     "transcodeFailed": "Échec du transcodage",
-    "transcodeStarted": "La vidéo est en cours de transcodage en arrière-plan"
+    "transcodeStarted": "La vidéo est en cours de transcodage en arrière-plan",
+    "transcodeInProgress": "La vidéo est en cours de transcodage, veuillez attendre la fin"
 }
