@@ -70,8 +70,9 @@ const STATUS_COLOR_MAP: Record<VideoStatus, string> = {
   downloading: 'cyan',
   processing: 'orange',
   completed: 'green',
+  transcoding: 'purple',
   error: 'red',
-}
+};
 
 function getSourceIcon(sourceType: VideoSourceType) {
   if (sourceType === 'youtube') return <YoutubeOutlined />

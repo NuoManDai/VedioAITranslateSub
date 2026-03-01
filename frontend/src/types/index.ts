@@ -4,7 +4,7 @@
 
 // Video types
 export type VideoSourceType = 'upload' | 'youtube';
-export type VideoStatus = 'uploading' | 'downloading' | 'ready' | 'processing' | 'completed' | 'error';
+export type VideoStatus = 'uploading' | 'downloading' | 'ready' | 'processing' | 'completed' | 'error' | 'transcoding';
 
 export interface Video {
   id: string;
@@ -59,6 +59,15 @@ export interface ProcessingStatus {
   canStartDubbing: boolean;
   subtitleMerged: boolean;  // 字幕是否已合并到视频 (output_sub.mp4)
 }
+
+// Transcode types
+export interface TranscodeStatus {
+  videoId: string;
+  status: 'none' | 'pending' | 'transcoding' | 'completed' | 'failed';
+  progress: number;  // 0-100
+  error?: string;
+}
+
 
 // Log types
 export type LogLevel = 'INFO' | 'WARNING' | 'ERROR';

@@ -11,6 +11,7 @@ import type {
   ApiValidateResponse,
   ApiError,
   MessageResponse,
+  TranscodeStatus,
 } from '../types';
 
 const API_BASE_URL = '/api';
@@ -282,6 +283,14 @@ export async function cancelProcessing(): Promise<MessageResponse> {
     method: 'POST',
   });
 }
+
+/**
+ * Get transcode status for a video
+ */
+export async function getTranscodeStatus(videoId: string): Promise<TranscodeStatus> {
+  return fetchApi<TranscodeStatus>(`/video/${videoId}/transcode-status`);
+}
+
 
 /**
  * Get SRT download URL
