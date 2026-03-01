@@ -28,6 +28,7 @@ export default function VideoUpload({ onSuccess }: VideoUploadProps) {
       })
       
       message.success(t('success'))
+      message.info(t('transcodeStarted'))
       onSuccess(video)
     } catch (error) {
       message.error(error instanceof Error ? error.message : t('error'))

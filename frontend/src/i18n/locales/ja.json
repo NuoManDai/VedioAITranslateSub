@@ -167,5 +167,6 @@
     "videoList.sortBy": "並べ替え",
     "transcoding": "変換中",
     "transcodingProgress": "変換進度 {{percent}}%",
-    "transcodeFailed": "変換失敗"
+    "transcodeFailed": "変換失敗",
+    "transcodeStarted": "動画はバックグラウンドで変換されています"
 }

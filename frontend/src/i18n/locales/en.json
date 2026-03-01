@@ -387,5 +387,6 @@
     "videoList.sortBy": "Sort",
     "transcoding": "Transcoding",
     "transcodingProgress": "Transcoding {{percent}}%",
-    "transcodeFailed": "Transcode failed"
+    "transcodeFailed": "Transcode failed",
+    "transcodeStarted": "Video is being transcoded in the background"
 }

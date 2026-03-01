@@ -167,5 +167,6 @@
     "videoList.sortBy": "Сортировка",
     "transcoding": "Перекодирование",
     "transcodingProgress": "Перекодирование {{percent}}%",
-    "transcodeFailed": "Ошибка перекодирования"
+    "transcodeFailed": "Ошибка перекодирования",
+    "transcodeStarted": "Видео транскодируется в фоновом режиме"
 }

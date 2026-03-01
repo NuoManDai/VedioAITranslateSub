@@ -167,5 +167,6 @@
     "videoList.sortBy": "Trier",
     "transcoding": "Transcodage",
     "transcodingProgress": "Transcodage {{percent}}%",
-    "transcodeFailed": "Échec du transcodage"
+    "transcodeFailed": "Échec du transcodage",
+    "transcodeStarted": "La vidéo est en cours de transcodage en arrière-plan"
 }

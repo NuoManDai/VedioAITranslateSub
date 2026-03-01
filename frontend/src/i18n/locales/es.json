@@ -167,5 +167,6 @@
     "videoList.sortBy": "Ordenar",
     "transcoding": "Transcodificando",
     "transcodingProgress": "Transcodificando {{percent}}%",
-    "transcodeFailed": "Error de transcodificación"
+    "transcodeFailed": "Error de transcodificación",
+    "transcodeStarted": "El video se está transcodificando en segundo plano"
 }

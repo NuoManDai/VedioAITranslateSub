@@ -387,5 +387,6 @@
     "videoList.sortBy": "排序",
     "transcoding": "转码中",
     "transcodingProgress": "转码进度 {{percent}}%",
-    "transcodeFailed": "转码失败"
+    "transcodeFailed": "转码失败",
+    "transcodeStarted": "视频正在后台转码，请稍候"
 }
