@@ -298,6 +298,45 @@ class SubtitleService:
 
         logger.info(f"Saved subtitles to {len(saved_files)} files")
 
+        # ----------
+        # Sync for_audio.srt files (used by dubbing pipeline)
+        # ----------
+        audio_dir = output_dir / "audio"
+
+        # Sync trans_subs_for_audio.srt with translated text
+        trans_audio_srt = audio_dir / "trans_subs_for_audio.srt"
+        if trans_audio_srt.exists():
+            shutil.copy2(trans_audio_srt, trans_audio_srt.with_suffix(".srt.bak"))
+            audio_trans_entries = [
+                SubtitleEntry(
+                    index=entry.index,
+                    start_time=entry.start_time,
+                    end_time=entry.end_time,
+                    text=entry.text,
+                    original_text=None,
+                )
+                for entry in entries
+            ]
+            self.write_srt_file(audio_trans_entries, trans_audio_srt)
+            logger.info(f"Synced trans_subs_for_audio.srt for video {video_id}")
+
+        # Sync src_subs_for_audio.srt with source text
+        src_audio_srt = audio_dir / "src_subs_for_audio.srt"
+        if src_audio_srt.exists():
+            shutil.copy2(src_audio_srt, src_audio_srt.with_suffix(".srt.bak"))
+            audio_src_entries = [
+                SubtitleEntry(
+                    index=entry.index,
+                    start_time=entry.start_time,
+                    end_time=entry.end_time,
+                    text=entry.original_text or entry.text,
+                    original_text=None,
+                )
+                for entry in entries
+            ]
+            self.write_srt_file(audio_src_entries, src_audio_srt)
+            logger.info(f"Synced src_subs_for_audio.srt for video {video_id}")
+
         return {"success": True, "savedFiles": saved_files, "entryCount": len(entries)}
 
     # ========== Merge to Video ==========
