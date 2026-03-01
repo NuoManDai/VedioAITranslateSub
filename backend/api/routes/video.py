@@ -9,7 +9,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from models import VideoResponse, YouTubeDownloadRequest
+from models import VideoResponse, YouTubeDownloadRequest, TranscodeStatusResponse
 from api.deps import get_app_state
 from services.video_service import VideoService
 
@@ -147,8 +147,34 @@ async def delete_current_video():
 
 # ----------------------------
 # Per-video endpoints (dynamic {video_id} routes MUST come after static routes)
+# NOTE: /transcode-status is here because it contains a sub-path under {video_id}
 # ----------------------------
 
+
+@router.get("/{video_id}/transcode-status")
+async def get_transcode_status(video_id: str):
+    """
+    Get transcode status for a video.
+    Returns progress and status of the transcoding job (if any).
+    """
+    state = get_app_state()
+    tm = state.transcode_manager
+    ts = tm.get_status(video_id)
+
+    if ts is None:
+        return TranscodeStatusResponse(
+            video_id=video_id,
+            status="none",
+            progress=0.0,
+            error=None,
+        ).model_dump(by_alias=True)
+
+    return TranscodeStatusResponse(
+        video_id=video_id,
+        status=ts.status,
+        progress=ts.progress,
+        error=ts.error,
+    ).model_dump(by_alias=True)
 
 @router.get("/{video_id}")
 async def get_video(video_id: str):

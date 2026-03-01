@@ -10,7 +10,7 @@ import uuid
 
 VideoSourceType = Literal["upload", "youtube"]
 VideoStatus = Literal[
-    "uploading", "downloading", "ready", "processing", "completed", "error"
+    "uploading", "downloading", "transcoding", "ready", "processing", "completed", "error"
 ]
 
 
@@ -86,3 +86,22 @@ class YouTubeDownloadRequest(BaseModel):
     resolution: Literal["360", "1080", "best"] = Field(
         default="1080", description="视频分辨率"
     )
+
+
+# ----------------------------
+# Transcode Status Response
+# ----------------------------
+
+
+TranscodeJobStatus = Literal["none", "pending", "transcoding", "completed", "failed"]
+
+
+class TranscodeStatusResponse(BaseModel):
+    """Response model for video transcode status polling"""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    video_id: str
+    status: TranscodeJobStatus = "none"
+    progress: float = 0.0
+    error: Optional[str] = None

@@ -2,11 +2,17 @@
 API dependencies injection module
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from services.log_service import LogStore
+    from services.transcode_service import TranscodeManager
     from models import ProcessingJob
 
 # Project root directory (videoLongo/)
@@ -68,8 +74,44 @@ class AppState:
         self.dubbing_job = None
         self._cancel_requested = False
         self._log_store = None
+        self._transcode_manager: Optional["TranscodeManager"] = None
         # Per-video job cache: { video_id: { "subtitle_job": ..., "dubbing_job": ... } }
         self._video_jobs: dict[str, dict[str, Optional["ProcessingJob"]]] = {}
+
+    @property
+    def transcode_manager(self) -> "TranscodeManager":
+        """Get the transcode manager singleton (lazy initialization)"""
+        if self._transcode_manager is None:
+            from services.transcode_service import TranscodeManager
+
+            self._transcode_manager = TranscodeManager()
+            self._setup_transcode_callback()
+        return self._transcode_manager
+
+    def _setup_transcode_callback(self) -> None:
+        """Wire the on_complete callback that updates DB after transcode finishes."""
+        from database.video_db import VideoDB
+
+        db = VideoDB()
+
+        def _on_transcode_complete(video_id: str, success: bool, new_path: str) -> None:
+            if not success:
+                db.update_video(video_id, status="error", error_message="Transcode failed")
+                return
+
+            new_p = Path(new_path)
+            new_filename = new_p.name
+            new_relative = str(new_p.relative_to(PROJECT_ROOT))
+            db.update_video(
+                video_id,
+                filename=new_filename,
+                filepath=new_relative,
+                status="ready",
+            )
+            logger.info("Transcode complete for %s → %s", video_id, new_filename)
+
+        if self._transcode_manager is not None:
+            self._transcode_manager.on_complete = _on_transcode_complete
 
     @property
     def log_store(self) -> "LogStore":

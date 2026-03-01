@@ -210,6 +210,17 @@ class VideoService:
             state.subtitle_job = None
             state.dubbing_job = None
 
+            # Trigger transcode for non-MP4 files
+            actual_id = created_id
+            actual_dir = self.output_dir / actual_id
+            actual_file = actual_dir / safe_name
+            self._maybe_start_transcode(state, actual_id, actual_file, actual_dir)
+
+            # Re-fetch video in case status was updated to 'transcoding'
+            video = self.db.get_video(actual_id)
+            if video:
+                state.current_video = video
+
             return video
 
         except Exception as e:
@@ -217,6 +228,29 @@ class VideoService:
             if video_dir.exists():
                 shutil.rmtree(video_dir, ignore_errors=True)
             raise e
+
+    # ----------------------------
+    # Transcode Helper
+    # ----------------------------
+
+    def _maybe_start_transcode(
+        self, state, video_id: str, file_path: Path, video_dir: Path
+    ) -> None:
+        """Trigger transcode if file is not already H.264 MP4. Non-blocking."""
+        from services.transcode_service import needs_transcode
+
+        src = str(file_path)
+        if not needs_transcode(src):
+            logger.info("File already H.264 MP4, skipping transcode: %s", src)
+            return
+
+        # Update DB status to 'transcoding'
+        self.db.update_video(video_id, status="transcoding")
+
+        # Schedule async transcode via AppState's TranscodeManager
+        tm = state.transcode_manager
+        tm.start_transcode(video_id, src, str(video_dir))
+        logger.info("Transcode scheduled for video %s: %s", video_id, src)
 
     # ----------------------------
     # YouTube Download
