@@ -4,6 +4,7 @@ Processing Service - Business logic for subtitle and dubbing processing
 
 import sys
 import asyncio
+import subprocess
 import time
 import re
 import io
@@ -23,10 +24,13 @@ from api.deps import (
     get_log_store,
 )
 from database.video_db import VideoDB
-from services.core_path_manager import setup_video_workspace, teardown_video_workspace
+from services.core_path_manager import (
+    get_workspace_root,
+    setup_video_workspace,
+    teardown_video_workspace,
+)
 
 # Import cancel flag utilities from core
-import sys
 
 _project_root = get_project_root()
 if str(_project_root) not in sys.path:
@@ -287,6 +291,9 @@ class ProcessingService:
             # Update status in DB
             self.video_db.update_video_status(video.id, "processing")
 
+            # Resolve workspace root after setup
+            workspace_root = get_workspace_root(video.id)
+
             # Stage 1: ASR (Speech Recognition)
             await self._run_stage(job, "asr", self._run_asr)
             if state.is_cancel_requested():
@@ -391,42 +398,55 @@ class ProcessingService:
         try:
             # Setup workspace: copy video to flat output/
             setup_video_workspace(video.id, video.filename)
+            workspace_root = get_workspace_root(video.id)
 
             # Update status in DB
             self.video_db.update_video_status(video.id, "processing")
 
             # Stage 1: Audio Task
-            await self._run_stage(job, "audio_task", self._run_audio_task)
+            await self._run_stage(
+                job, "audio_task", lambda: self._run_audio_task(workspace_root)
+            )
             if state.is_cancel_requested():
                 log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
                 return
 
             # Stage 2: Dub Chunks
-            await self._run_stage(job, "dub_chunks", self._run_dub_chunks)
+            await self._run_stage(
+                job, "dub_chunks", lambda: self._run_dub_chunks(workspace_root)
+            )
             if state.is_cancel_requested():
                 log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
                 return
 
             # Stage 3: Refer Audio
-            await self._run_stage(job, "refer_audio", self._run_refer_audio)
+            await self._run_stage(
+                job, "refer_audio", lambda: self._run_refer_audio(workspace_root)
+            )
             if state.is_cancel_requested():
                 log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
                 return
 
             # Stage 4: Generate Audio
-            await self._run_stage(job, "gen_audio", self._run_gen_audio)
+            await self._run_stage(
+                job, "gen_audio", lambda: self._run_gen_audio(workspace_root)
+            )
             if state.is_cancel_requested():
                 log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
                 return
 
             # Stage 5: Merge Audio
-            await self._run_stage(job, "merge_audio", self._run_merge_audio)
+            await self._run_stage(
+                job, "merge_audio", lambda: self._run_merge_audio(workspace_root)
+            )
             if state.is_cancel_requested():
                 log_store.warning("配音处理被用户取消", source="dubbing", job_id=job.id)
                 return
 
             # Stage 6: Dub to Video
-            await self._run_stage(job, "dub_to_vid", self._run_dub_to_vid)
+            await self._run_stage(
+                job, "dub_to_vid", lambda: self._run_dub_to_vid(workspace_root)
+            )
 
             # Complete
             job.complete()
@@ -592,41 +612,101 @@ class ProcessingService:
 
     # ========== Dubbing Processing Stages ==========
 
-    def _run_audio_task(self):
+    def _run_audio_task(self, workspace_root: Path):
         """Generate audio tasks"""
-        from core._8_1_audio_task import gen_audio_task_main
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from core._8_1_audio_task import gen_audio_task_main; gen_audio_task_main()",
+            ],
+            cwd=str(workspace_root),
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
 
-        gen_audio_task_main()
-
-    def _run_dub_chunks(self):
+    def _run_dub_chunks(self, workspace_root: Path):
         """Generate dubbing chunks"""
-        from core._8_2_dub_chunks import gen_dub_chunks
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from core._8_2_dub_chunks import gen_dub_chunks; gen_dub_chunks()",
+            ],
+            cwd=str(workspace_root),
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
 
-        gen_dub_chunks()
-
-    def _run_refer_audio(self):
+    def _run_refer_audio(self, workspace_root: Path):
         """Extract reference audio"""
-        from core._9_refer_audio import extract_refer_audio_main
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from core._9_refer_audio import extract_refer_audio_main; extract_refer_audio_main()",
+            ],
+            cwd=str(workspace_root),
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
 
-        extract_refer_audio_main()
-
-    def _run_gen_audio(self):
+    def _run_gen_audio(self, workspace_root: Path):
         """Generate audio"""
-        from core._10_gen_audio import gen_audio
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from core._10_gen_audio import gen_audio; gen_audio()",
+            ],
+            cwd=str(workspace_root),
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
 
-        gen_audio()
-
-    def _run_merge_audio(self):
+    def _run_merge_audio(self, workspace_root: Path):
         """Merge audio files"""
-        from core._11_merge_audio import merge_full_audio
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from core._11_merge_audio import merge_full_audio; merge_full_audio()",
+            ],
+            cwd=str(workspace_root),
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
 
-        merge_full_audio()
-
-    def _run_dub_to_vid(self):
+    def _run_dub_to_vid(self, workspace_root: Path):
         """Merge dubbing to video"""
-        from core._12_dub_to_vid import merge_video_audio
-
-        merge_video_audio()
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from core._12_dub_to_vid import merge_video_audio; merge_video_audio()",
+            ],
+            cwd=str(workspace_root),
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
 
     def _get_check_dir(self, video_id: Optional[str] = None) -> Path:
         """Get the directory to check for output files.
