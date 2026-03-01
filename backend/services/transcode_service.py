@@ -236,7 +236,9 @@ def transcode_to_mp4(
             cmd,
             stderr=subprocess.PIPE,
             stdout=subprocess.DEVNULL,
-            universal_newlines=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
 
         for line in proc.stderr:  # type: ignore[union-attr]
@@ -264,6 +266,8 @@ def transcode_to_mp4(
         raise TranscodeError(f"ffmpeg timed out (600s) for {input_path}") from e
     except OSError as e:
         raise TranscodeError(f"ffmpeg process error for {input_path}: {e}") from e
+    except UnicodeDecodeError as e:
+        raise TranscodeError(f"ffmpeg output encoding error for {input_path}: {e}") from e
     finally:
         if proc is not None and proc.poll() is None:
             proc.kill()
