@@ -2,7 +2,22 @@
 Processing Service - Business logic for subtitle and dubbing processing
 """
 
-# pyright: ignore
+from __future__ import annotations
+
+# pyright: reportUnusedImport=false
+# pyright: reportDeprecated=false
+# pyright: reportUnknownParameterType=false
+# pyright: reportMissingParameterType=false
+# pyright: reportUnknownMemberType=false
+# pyright: reportImplicitStringConcatenation=false
+# pyright: reportImplicitOverride=false
+# pyright: reportUnknownArgumentType=false
+# pyright: reportUnknownVariableType=false
+# pyright: reportUnusedVariable=false
+# pyright: reportUnnecessaryComparison=false
+# pyright: reportUnreachable=false
+# pyright: reportUnusedCallResult=false
+# pyright: reportUnannotatedClassAttribute=false
 
 import asyncio
 import subprocess
@@ -18,16 +33,19 @@ from contextlib import redirect_stdout, redirect_stderr
 import logging
 import threading
 
-from models import ProcessingJob, Video
-from api.deps import (
+from backend.models import ProcessingJob, Video
+
+from backend.api.deps import (
     get_app_state,
     get_output_dir,
     get_video_output_dir,
     get_project_root,
     get_log_store,
 )
-from database.video_db import VideoDB
-from services.core_path_manager import (
+
+from backend.database.video_db import VideoDB
+
+from backend.services.core_path_manager import (
     get_workspace_root,
     setup_video_workspace,
     teardown_video_workspace,
@@ -38,7 +56,10 @@ from services.core_path_manager import (
 _project_root = get_project_root()
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
-from core.utils.config_utils import set_cancel_flag, clear_cancel_flag
+from core.utils.config_utils import (  # type: ignore[reportMissingImports]
+    clear_cancel_flag,
+    set_cancel_flag,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +277,7 @@ class ProcessingService:
         self._setup_core_imports()
         self.video_db = VideoDB()
         self._dubbing_semaphore = asyncio.Semaphore(3)  # max 3 concurrent dubbing jobs
-        self._video_jobs: dict = {}  # track active dubbing jobs per video_id
+        self._video_jobs: dict[str, ProcessingJob] = {}
 
     def _setup_core_imports(self):
         """Setup imports for core modules"""
@@ -413,6 +434,8 @@ class ProcessingService:
                 # Setup workspace: copy video to flat output/
                 setup_video_workspace(video_id, video.filename)
                 workspace_root = get_workspace_root(video_id)
+                if workspace_root is None:
+                    raise RuntimeError("Workspace root is not initialized")
 
                 # Inject latest edited for_audio.srt into workspace before dubbing starts
                 _src = (
@@ -420,9 +443,6 @@ class ProcessingService:
                     / "audio"
                     / "trans_subs_for_audio.srt"
                 )
-                if workspace_root is None:
-                    raise RuntimeError("Workspace root is not initialized")
-
                 _dst = workspace_root / "output" / "audio" / "trans_subs_for_audio.srt"
                 if _src.exists():
                     _dst.parent.mkdir(parents=True, exist_ok=True)
@@ -615,49 +635,53 @@ class ProcessingService:
 
     def _run_asr(self):
         """Run speech recognition"""
-        from core._2_asr import transcribe
+        from core._2_asr import transcribe  # type: ignore[reportMissingImports,reportUnknownVariableType]
 
         transcribe()
 
     def _run_split_nlp(self):
         """Run NLP-based sentence splitting"""
-        from core._3_1_split_nlp import split_by_spacy
+        from core._3_1_split_nlp import split_by_spacy  # type: ignore[reportMissingImports,reportUnknownVariableType]
 
         split_by_spacy()
 
     def _run_split_meaning(self):
         """Run meaning-based splitting"""
-        from core._3_2_split_meaning import split_sentences_by_meaning
+        from core._3_2_split_meaning import (  # type: ignore[reportMissingImports,reportUnknownVariableType]
+            split_sentences_by_meaning,
+        )
 
         split_sentences_by_meaning()
 
     def _run_summarize(self):
         """Run content summarization"""
-        from core._4_1_summarize import get_summary
+        from core._4_1_summarize import get_summary  # type: ignore[reportMissingImports,reportUnknownVariableType]
 
         get_summary()
 
     def _run_translate(self):
         """Run translation"""
-        from core._4_2_translate import translate_all
+        from core._4_2_translate import translate_all  # type: ignore[reportMissingImports,reportUnknownVariableType]
 
         translate_all()
 
     def _run_split_sub(self):
         """Run subtitle splitting"""
-        from core._5_split_sub import split_for_sub_main
+        from core._5_split_sub import split_for_sub_main  # type: ignore[reportMissingImports,reportUnknownVariableType]
 
         split_for_sub_main()
 
     def _run_gen_sub(self):
         """Generate subtitles"""
-        from core._6_gen_sub import align_timestamp_main
+        from core._6_gen_sub import align_timestamp_main  # type: ignore[reportMissingImports,reportUnknownVariableType]
 
         align_timestamp_main()
 
     def _run_merge_sub(self):
         """Merge subtitles to video"""
-        from core._7_sub_into_vid import merge_subtitles_to_video
+        from core._7_sub_into_vid import (  # type: ignore[reportMissingImports,reportUnknownVariableType]
+            merge_subtitles_to_video,
+        )
 
         merge_subtitles_to_video()
 
@@ -790,7 +814,7 @@ class ProcessingService:
 
     def detect_completed_stages(
         self, job_type: str = "subtitle", video_id: Optional[str] = None
-    ) -> dict:
+    ) -> dict[str, bool]:
         """
         Detect which stages are completed based on output files.
         Used to restore state after manual processing or server restart.
@@ -802,7 +826,9 @@ class ProcessingService:
         Returns:
             dict with stage names and their completion status
         """
-        from backend.models.stage import STAGE_OUTPUT_FILES
+        from backend.models.stage import (  # type: ignore[reportMissingImports,reportUnknownVariableType]
+            STAGE_OUTPUT_FILES,
+        )
 
         completed_stages = {}
 
@@ -894,8 +920,12 @@ class ProcessingService:
         Returns:
             ProcessingJob if state can be restored, None otherwise
         """
-        from backend.models.stage import get_subtitle_stages, get_dubbing_stages
-        from models import ProcessingJob
+        from backend.models.stage import (  # type: ignore[reportMissingImports,reportUnknownVariableType]
+            get_dubbing_stages,
+            get_subtitle_stages,
+        )
+
+        from backend.models import ProcessingJob
 
         if job_type == "subtitle":
             if not self.is_subtitle_processing_completed(video_id):
@@ -924,7 +954,9 @@ class ProcessingService:
 
         return job
 
-    def cleanup_subtitle_files(self, video_id: Optional[str] = None) -> dict:
+    def cleanup_subtitle_files(
+        self, video_id: Optional[str] = None
+    ) -> dict[str, bool | list[str]]:  # type: ignore[reportReturnType]
         """
         Clean up subtitle processing intermediate files
 
@@ -994,7 +1026,9 @@ class ProcessingService:
             "preservedPaths": preserved_paths,
         }
 
-    def cleanup_dubbing_files(self, video_id: Optional[str] = None) -> dict:
+    def cleanup_dubbing_files(
+        self, video_id: Optional[str] = None
+    ) -> dict[str, bool | list[str]]:  # type: ignore[reportReturnType]
         """
         Clean up dubbing processing intermediate files
 
@@ -1060,7 +1094,9 @@ class ProcessingService:
             "preservedPaths": preserved_paths,
         }
 
-    def cleanup_all_files(self, video_id: Optional[str] = None) -> dict:
+    def cleanup_all_files(
+        self, video_id: Optional[str] = None
+    ) -> dict[str, bool | list[str]]:  # type: ignore[reportReturnType]
         """
         Clean up ALL processing files and reset to initial state
 
