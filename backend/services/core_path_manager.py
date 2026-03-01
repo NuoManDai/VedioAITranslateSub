@@ -2,8 +2,8 @@
 Core Path Manager - Workspace manager for per-video output directory isolation
 
 This module implements the workspace copy pattern:
-1. setup_video_workspace: Clean flat output/ and copy video file there
-2. Core pipeline runs and writes to flat output/
+1. setup_video_workspace: Create isolated workspace and copy video file there
+2. Core pipeline runs and writes to workspace/output/
 3. teardown_video_workspace: Move results back to output/{video_id}/
 
 This approach avoids modifying core modules and ensures process isolation.
@@ -14,7 +14,13 @@ import shutil
 from pathlib import Path
 from uuid import UUID
 
-from api.deps import PROJECT_ROOT, OUTPUT_DIR
+from api.deps import OUTPUT_DIR
+
+__all__ = [
+    "get_workspace_root",
+    "setup_video_workspace",
+    "teardown_video_workspace",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +74,61 @@ def _ensure_video_dirs(video_id: str) -> None:
     for subdir in subdirs:
         subdir.mkdir(parents=True, exist_ok=True)
         logger.debug(f"Ensured directory: {subdir}")
+
+
+# ----------
+# Workspace helpers
+# ----------
+
+
+def get_workspace_root(video_id: str) -> Path:
+    """
+    Get the absolute workspace root for a video.
+
+    Args:
+        video_id: The video UUID
+
+    Returns:
+        Absolute path to output/.workspace/{video_id}/
+    """
+    return (OUTPUT_DIR / ".workspace" / video_id).resolve()
+
+
+def _ensure_workspace_dirs(video_id: str) -> Path:
+    """
+    Create workspace directory structure for a specific video.
+
+    Creates:
+    - output/.workspace/{video_id}/output/
+    - output/.workspace/{video_id}/output/log/
+    - output/.workspace/{video_id}/output/gpt_log/
+    - output/.workspace/{video_id}/output/audio/
+    - output/.workspace/{video_id}/output/audio/refers/
+    - output/.workspace/{video_id}/output/audio/segs/
+    - output/.workspace/{video_id}/output/audio/tmp/
+
+    Args:
+        video_id: The video UUID
+
+    Returns:
+        Path to output/.workspace/{video_id}/output/
+    """
+    workspace_output = get_workspace_root(video_id) / "output"
+    subdirs = [
+        workspace_output,
+        workspace_output / "log",
+        workspace_output / "gpt_log",
+        workspace_output / "audio",
+        workspace_output / "audio" / "refers",
+        workspace_output / "audio" / "segs",
+        workspace_output / "audio" / "tmp",
+    ]
+
+    for subdir in subdirs:
+        subdir.mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Ensured workspace directory: {subdir}")
+
+    return workspace_output
 
 
 def _clean_flat_output() -> None:
@@ -135,6 +196,39 @@ def _copy_video_to_flat_output(video_id: str, video_filename: str) -> str:
         raise
 
 
+def _copy_video_to_workspace_output(video_id: str, video_filename: str) -> str:
+    """
+    Copy video file from per-video directory to workspace output directory.
+
+    The core pipeline expects the video file to be at output/{filename}, so the
+    workspace uses output/.workspace/{video_id}/output/{filename} as the root.
+
+    Args:
+        video_id: The video UUID
+        video_filename: Name of the video file (e.g., 'video.mp4')
+
+    Returns:
+        The filename in the workspace output directory
+
+    Raises:
+        FileNotFoundError: If source video file does not exist
+    """
+    src = OUTPUT_DIR / video_id / video_filename
+    workspace_output = get_workspace_root(video_id) / "output"
+    dst = workspace_output / video_filename
+
+    if not src.exists():
+        raise FileNotFoundError(f"Video file not found: {src}")
+
+    try:
+        shutil.copy2(str(src), str(dst))
+        logger.info(f"Copied video to workspace output: {video_filename}")
+        return video_filename
+    except Exception as e:
+        logger.error(f"Failed to copy video {src} to {dst}: {e}")
+        raise
+
+
 def _save_pipeline_output(video_id: str, video_filename: str) -> None:
     """
     Move pipeline output from flat output/ back to per-video directory.
@@ -187,16 +281,55 @@ def _save_pipeline_output(video_id: str, video_filename: str) -> None:
             raise
 
 
+def _merge_workspace_output(video_id: str, video_filename: str) -> None:
+    """
+    Copy pipeline output from workspace output/ back to per-video directory.
+
+    Args:
+        video_id: The video UUID
+        video_filename: Original source video filename to skip during copy
+
+    Raises:
+        Exception: If copy operation fails
+    """
+    video_dir = OUTPUT_DIR / video_id
+    workspace_output = get_workspace_root(video_id) / "output"
+
+    video_dir.mkdir(parents=True, exist_ok=True)
+
+    if not workspace_output.exists():
+        logger.warning(f"Workspace output directory does not exist: {workspace_output}")
+        return
+
+    for item in workspace_output.iterdir():
+        if item.is_file() and item.name == video_filename:
+            logger.debug(f"Skipping source video during copy: {item.name}")
+            continue
+
+        dst = video_dir / item.name
+        try:
+            if item.is_dir():
+                shutil.copytree(str(item), str(dst), dirs_exist_ok=True)
+                logger.debug(f"Copied directory: {item.name} -> {video_id}/{item.name}")
+            else:
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(item), str(dst))
+                logger.debug(f"Copied file: {item.name} -> {video_id}/{item.name}")
+        except Exception as e:
+            logger.error(f"Failed to copy {item.name} to {video_dir}: {e}")
+            raise
+
+
 def setup_video_workspace(video_id: str, video_filename: str) -> None:
     """
     Setup workspace for video processing.
 
     This performs the initial setup for processing a video:
     1. Ensure per-video directory structure exists
-    2. Clean the flat output/ directory
-    3. Copy the video file to flat output/
+    2. Create workspace output directory structure
+    3. Copy the video file to workspace output/
 
-    After this, the core pipeline can run with video at output/{video_filename}
+    After this, the core pipeline can run with cwd set to the workspace root
     and will write output to output/log/, output/audio/, etc.
 
     Args:
@@ -214,12 +347,12 @@ def setup_video_workspace(video_id: str, video_filename: str) -> None:
         _ensure_video_dirs(video_id)
         logger.debug(f"Created per-video directories for {video_id}")
 
-        # Step 2: Clean the flat output directory
-        _clean_flat_output()
-        logger.debug("Cleaned flat output directory")
+        # Step 2: Create workspace output directory structure
+        _ensure_workspace_dirs(video_id)
+        logger.debug(f"Created workspace directories for {video_id}")
 
-        # Step 3: Copy video to flat output
-        _copy_video_to_flat_output(video_id, video_filename)
+        # Step 3: Copy video to workspace output
+        _copy_video_to_workspace_output(video_id, video_filename)
         logger.info(f"Workspace ready for video {video_id}")
 
     except Exception as e:
@@ -233,8 +366,8 @@ def teardown_video_workspace(video_id: str, video_filename: str) -> None:
 
     This performs final cleanup after pipeline completes:
     1. Ensure per-video directory exists
-    2. Move all pipeline output from flat output/ to output/{video_id}/
-    3. Clean up remaining files in flat output/
+    2. Copy all pipeline output from workspace output/ to output/{video_id}/
+    3. Remove workspace directory
 
     Args:
         video_id: The video UUID
@@ -250,13 +383,15 @@ def teardown_video_workspace(video_id: str, video_filename: str) -> None:
         _ensure_video_dirs(video_id)
         logger.debug(f"Ensured per-video directories for {video_id}")
 
-        # Step 2: Move pipeline output to per-video directory
-        _save_pipeline_output(video_id, video_filename)
-        logger.debug(f"Moved pipeline output to {video_id}")
+        # Step 2: Copy pipeline output to per-video directory
+        _merge_workspace_output(video_id, video_filename)
+        logger.debug(f"Copied pipeline output to {video_id}")
 
-        # Step 3: Clean remaining non-UUID items from flat output
-        _clean_flat_output()
-        logger.debug("Final cleanup of flat output directory")
+        # Step 3: Remove workspace directory
+        workspace_root = get_workspace_root(video_id)
+        if workspace_root.exists():
+            shutil.rmtree(str(workspace_root))
+            logger.debug(f"Removed workspace directory: {workspace_root}")
 
         logger.info(f"Workspace teardown completed for {video_id}")
 

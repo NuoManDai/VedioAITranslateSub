@@ -9,6 +9,7 @@ from .video import (
     VideoSourceType,
     VideoStatus,
     YouTubeDownloadRequest,
+    TranscodeStatusResponse,
 )
 from .stage import ProcessingStage, StageStatus, get_subtitle_stages, get_dubbing_stages
 from .job import ProcessingJob, ProcessingStatus, JobType, JobStatus
@@ -68,4 +69,5 @@ __all__ = [
     "TTSMethod",
     "AzureVoice",
     "AzureVoiceListResponse",
+    "TranscodeStatusResponse",
     ]
